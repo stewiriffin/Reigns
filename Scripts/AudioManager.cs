@@ -30,12 +30,19 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private float bgmCrossfadeDuration = 1f;
     [SerializeField] private AudioClip defaultBgm;
 
-    [Header("SFX Clips")]
+    [Header("SFX Clips (legacy single / pool fallback)")]
     [SerializeField] private AudioClip cardDrawSfx;
     [SerializeField] private AudioClip swipeLeftSfx;
     [SerializeField] private AudioClip swipeRightSfx;
     [SerializeField] private AudioClip buttonClickSfx;
     [SerializeField] private AudioClip gameOverSfx;
+
+    [Header("SFX Pools (variations + pitch/volume jitter)")]
+    [SerializeField] private SoundPool cardDrawPool = new SoundPool();
+    [SerializeField] private SoundPool swipeLeftPool = new SoundPool();
+    [SerializeField] private SoundPool swipeRightPool = new SoundPool();
+    [SerializeField] private SoundPool buttonClickPool = new SoundPool();
+    [SerializeField] private SoundPool gameOverPool = new SoundPool();
 
     [Header("Volumes (0-1)")]
     [SerializeField] [Range(0f, 1f)] private float masterVolume = 1f;
@@ -66,6 +73,7 @@ public class AudioManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         EnsureSources();
+        InitializeSoundPools();
         if (SettingsManager.Instance != null)
         {
             masterVolume = SettingsManager.Instance.MasterVolume;
@@ -148,6 +156,22 @@ public class AudioManager : MonoBehaviour
         sfxSource.spatialBlend = 0f;
     }
 
+    private void InitializeSoundPools()
+    {
+        // Keep existing single-clip assignments working until variation arrays are filled.
+        cardDrawPool?.EnsureFallbackClip(cardDrawSfx);
+        swipeLeftPool?.EnsureFallbackClip(swipeLeftSfx);
+        swipeRightPool?.EnsureFallbackClip(swipeRightSfx);
+        buttonClickPool?.EnsureFallbackClip(buttonClickSfx);
+        gameOverPool?.EnsureFallbackClip(gameOverSfx);
+
+        cardDrawPool?.Initialize(transform, sfxMixerGroup, "CardDraw");
+        swipeLeftPool?.Initialize(transform, sfxMixerGroup, "SwipeLeft");
+        swipeRightPool?.Initialize(transform, sfxMixerGroup, "SwipeRight");
+        buttonClickPool?.Initialize(transform, sfxMixerGroup, "ButtonClick");
+        gameOverPool?.Initialize(transform, sfxMixerGroup, "GameOver");
+    }
+
     private AudioSource CreateChildSource(string name)
     {
         var go = new GameObject(name);
@@ -199,7 +223,8 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Plays a one-shot sound effect on the SFX bus.
+    /// Plays a one-shot sound effect on the SFX bus (no pitch variation).
+    /// Prefer <see cref="PlaySoundPool"/> for repetitive actions.
     /// </summary>
     public void PlaySFX(AudioClip clip)
     {
@@ -210,6 +235,25 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Plays a pooled variation with randomized pitch/volume on dedicated voices.
+    /// </summary>
+    public bool PlaySoundPool(SoundPool pool)
+    {
+        if (pool == null || !pool.HasClips)
+            return false;
+
+        return pool.Play(GetSfxOutputVolume());
+    }
+
+    private void PlayPoolOrFallback(SoundPool pool, AudioClip fallback)
+    {
+        if (PlaySoundPool(pool))
+            return;
+
+        PlaySFX(fallback);
+    }
+
+    /// <summary>
     /// Routes BGM / SFX sources to mixer groups (null clears routing).
     /// </summary>
     public void BindMixerGroups(AudioMixerGroup bgmGroup, AudioMixerGroup sfxGroup)
@@ -217,6 +261,11 @@ public class AudioManager : MonoBehaviour
         bgmMixerGroup = bgmGroup;
         sfxMixerGroup = sfxGroup;
         ApplyMixerRouting();
+        cardDrawPool?.SetMixerGroup(sfxMixerGroup);
+        swipeLeftPool?.SetMixerGroup(sfxMixerGroup);
+        swipeRightPool?.SetMixerGroup(sfxMixerGroup);
+        buttonClickPool?.SetMixerGroup(sfxMixerGroup);
+        gameOverPool?.SetMixerGroup(sfxMixerGroup);
     }
 
     /// <summary>
@@ -307,11 +356,11 @@ public class AudioManager : MonoBehaviour
         };
     }
 
-    public void PlayCardDraw() => PlaySFX(cardDrawSfx);
-    public void PlaySwipeLeft() => PlaySFX(swipeLeftSfx);
-    public void PlaySwipeRight() => PlaySFX(swipeRightSfx);
-    public void PlayButtonClick() => PlaySFX(buttonClickSfx);
-    public void PlayGameOver() => PlaySFX(gameOverSfx);
+    public void PlayCardDraw() => PlayPoolOrFallback(cardDrawPool, cardDrawSfx);
+    public void PlaySwipeLeft() => PlayPoolOrFallback(swipeLeftPool, swipeLeftSfx);
+    public void PlaySwipeRight() => PlayPoolOrFallback(swipeRightPool, swipeRightSfx);
+    public void PlayButtonClick() => PlayPoolOrFallback(buttonClickPool, buttonClickSfx);
+    public void PlayGameOver() => PlayPoolOrFallback(gameOverPool, gameOverSfx);
 
     /// <summary>
     /// Mutes BGM output while a full-screen ad is up without changing saved volume prefs.

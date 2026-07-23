@@ -113,6 +113,22 @@ public class AndroidSystemHandler : MonoBehaviour
             return;
         }
 
+        if (FactionLedgerVisible())
+        {
+            var ledger = FindObjectOfType<FactionLedgerUI>();
+            if (ledger != null)
+                ledger.Hide();
+            return;
+        }
+
+        if (QuestDrawerVisible())
+        {
+            var questUi = FindObjectOfType<QuestUI>();
+            if (questUi != null)
+                questUi.CloseDrawer();
+            return;
+        }
+
         UIFadeTransition.ScreenId screen = ResolveCurrentScreen();
 
         switch (screen)
@@ -233,6 +249,18 @@ public class AndroidSystemHandler : MonoBehaviour
     {
         var hall = FindObjectOfType<DynastyHallUI>();
         return hall != null && hall.IsOpen;
+    }
+
+    private static bool FactionLedgerVisible()
+    {
+        var ledger = FindObjectOfType<FactionLedgerUI>();
+        return ledger != null && ledger.IsOpen;
+    }
+
+    private static bool QuestDrawerVisible()
+    {
+        var questUi = FindObjectOfType<QuestUI>();
+        return questUi != null && questUi.IsDrawerOpen;
     }
 
     private void ShowNativeQuitConfirmation()

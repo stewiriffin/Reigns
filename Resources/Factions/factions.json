@@ -1,0 +1,28 @@
+{
+  "factions": [
+    {
+      "id": "merchant_guild",
+      "displayName": "The Merchant Guild",
+      "description": "Coin-counters and caravan masters who price every crown.",
+      "linkedStat": "Wealth",
+      "highLoyaltyCardId": "faction_guild_investment",
+      "lowLoyaltyCardId": "faction_merchant_rebellion"
+    },
+    {
+      "id": "witches",
+      "displayName": "The Witches",
+      "description": "Coven sisters in the fen — favors bought with silence and ash.",
+      "linkedStat": "Religion",
+      "highLoyaltyCardId": "faction_witches_boon",
+      "lowLoyaltyCardId": "faction_witches_curse"
+    },
+    {
+      "id": "foreign_empire",
+      "displayName": "Foreign Empire",
+      "description": "Envoys across the mountains who smile while measuring your borders.",
+      "linkedStat": "Army",
+      "highLoyaltyCardId": "faction_empire_alliance",
+      "lowLoyaltyCardId": "faction_empire_ultimatum"
+    }
+  ]
+}

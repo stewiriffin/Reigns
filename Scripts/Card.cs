@@ -122,6 +122,8 @@ public class Card
     public string leftChoiceUnlockFlag;
     /// <summary>Item ID granted when the player picks the left choice.</summary>
     public string leftChoiceGrantItem;
+    /// <summary>Hidden faction loyalty deltas for the left choice.</summary>
+    public FactionDelta[] leftChoiceFactionDeltas;
 
     public string rightChoiceText;
     public StatModifiers rightChoiceModifiers;
@@ -130,6 +132,8 @@ public class Card
     public string rightChoiceUnlockFlag;
     /// <summary>Item ID granted when the player picks the right choice.</summary>
     public string rightChoiceGrantItem;
+    /// <summary>Hidden faction loyalty deltas for the right choice.</summary>
+    public FactionDelta[] rightChoiceFactionDeltas;
 
     /// <summary>
     /// Optional. If set, a left swipe queues this card ID as the next draw (skips the random pool).

@@ -17,6 +17,7 @@ public class GameSaveData
     public string[] inventoryItemIds;
     public string currentCardId;
     public bool secondChanceUsedThisRun;
+    public FactionLoyaltySave[] factionLoyalties;
 }
 
 /// <summary>

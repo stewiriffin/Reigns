@@ -1,0 +1,92 @@
+{
+  "quests": [
+    {
+      "id": "survive_5",
+      "description": "Survive 5 years on the throne.",
+      "conditionType": 0,
+      "targetValue": 5,
+      "targetStat": "Army",
+      "threshold": 0,
+      "rewardType": 1,
+      "rewardId": "Quest_Survive5",
+      "rewardDescription": "Unlocked: Seasoned Ruler flag"
+    },
+    {
+      "id": "survive_10",
+      "description": "Survive 10 years on the throne.",
+      "conditionType": 0,
+      "targetValue": 10,
+      "targetStat": "Army",
+      "threshold": 0,
+      "rewardType": 2,
+      "rewardId": "survive_10_years",
+      "rewardDescription": "Achievement: Decade on the Throne"
+    },
+    {
+      "id": "army_guard_10",
+      "description": "Survive 10 years without Army dropping below 30.",
+      "conditionType": 1,
+      "targetValue": 10,
+      "targetStat": "Army",
+      "threshold": 30,
+      "rewardType": 1,
+      "rewardId": "Quest_ArmyGuard",
+      "rewardDescription": "Unlocked: Iron Garrison flag"
+    },
+    {
+      "id": "people_peace_8",
+      "description": "Survive 8 years without People dropping below 25.",
+      "conditionType": 1,
+      "targetValue": 8,
+      "targetStat": "People",
+      "threshold": 25,
+      "rewardType": 1,
+      "rewardId": "Quest_PeoplePeace",
+      "rewardDescription": "Unlocked: Beloved Crown flag"
+    },
+    {
+      "id": "faith_temper_8",
+      "description": "Survive 8 years without Religion rising above 80.",
+      "conditionType": 2,
+      "targetValue": 8,
+      "targetStat": "Religion",
+      "threshold": 80,
+      "rewardType": 1,
+      "rewardId": "Quest_FaithTemper",
+      "rewardDescription": "Unlocked: Secular Counsel flag"
+    },
+    {
+      "id": "wealth_60",
+      "description": "Raise Wealth to at least 60.",
+      "conditionType": 3,
+      "targetValue": 60,
+      "targetStat": "Wealth",
+      "threshold": 0,
+      "rewardType": 1,
+      "rewardId": "Quest_Wealth60",
+      "rewardDescription": "Unlocked: Full Coffers flag"
+    },
+    {
+      "id": "see_6_cards",
+      "description": "Encounter 6 different event cards in one reign.",
+      "conditionType": 4,
+      "targetValue": 6,
+      "targetStat": "Army",
+      "threshold": 0,
+      "rewardType": 1,
+      "rewardId": "Quest_Seen6",
+      "rewardDescription": "Unlocked: Well-Traveled flag"
+    },
+    {
+      "id": "army_guard_5",
+      "description": "Survive 5 years without Army dropping below 40.",
+      "conditionType": 1,
+      "targetValue": 5,
+      "targetStat": "Army",
+      "threshold": 40,
+      "rewardType": 1,
+      "rewardId": "Quest_ArmyVigil",
+      "rewardDescription": "Unlocked: Vigilant Host flag"
+    }
+  ]
+}

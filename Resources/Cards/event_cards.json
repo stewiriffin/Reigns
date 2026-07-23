@@ -31,7 +31,15 @@
         }
       ],
       "rightChoiceUnlockFlag": "",
-      "weather": "Dust"
+      "weather": "Dust",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "witches", "delta": 12 },
+        { "factionId": "merchant_guild", "delta": -6 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "witches", "delta": -10 },
+        { "factionId": "merchant_guild", "delta": -8 }
+      ]
     },
     {
       "id": "border_raiders",
@@ -71,7 +79,15 @@
         }
       ],
       "rightChoiceUnlockFlag": "",
-      "weather": "Dust"
+      "weather": "Dust",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": -15 },
+        { "factionId": "merchant_guild", "delta": -8 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": 10 },
+        { "factionId": "merchant_guild", "delta": -12 }
+      ]
     },
     {
       "id": "royal_wedding",
@@ -107,7 +123,15 @@
       "rightChoiceGrantItem": "holy_relic",
       "NextCardID_Left": "",
       "NextCardID_Right": "",
-      "weather": "None"
+      "weather": "None",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": 14 },
+        { "factionId": "merchant_guild", "delta": -10 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "merchant_guild", "delta": 16 },
+        { "factionId": "witches", "delta": -6 }
+      ]
     },
     {
       "id": "traveling_hunter",
@@ -198,7 +222,15 @@
         }
       ],
       "rightChoiceUnlockFlag": "",
-      "weather": "Rain"
+      "weather": "Rain",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "witches", "delta": 10 },
+        { "factionId": "merchant_guild", "delta": -12 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": 8 },
+        { "factionId": "merchant_guild", "delta": 6 }
+      ]
     },
     {
       "id": "famine_of_ashes",
@@ -264,7 +296,15 @@
         }
       ],
       "rightChoiceUnlockFlag": "",
-      "weather": "Dust"
+      "weather": "Dust",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": 18 },
+        { "factionId": "merchant_guild", "delta": -10 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": -20 },
+        { "factionId": "witches", "delta": 8 }
+      ]
     }
   ],
   "unlockablePools": [
@@ -335,6 +375,209 @@
           "rightChoiceStatusEffects": [],
           "rightChoiceUnlockFlag": "",
           "weather": "Embers"
+        }
+      ]
+    },
+    {
+      "id": "faction_events",
+      "cards": [
+        {
+          "id": "faction_guild_investment",
+          "scenarioText": "The Merchant Guild kneels with open ledgers. They offer a sealed investment that could flood the treasury — if you swear their tariffs into law.",
+          "prerequisiteFlag": "",
+          "era": 99,
+          "portraitResourcePath": "Characters/Diplomat/portrait",
+          "voiceResourcePath": "Characters/Diplomat/voice",
+          "leftChoiceText": "Accept the investment",
+          "leftChoiceModifiers": {
+            "religion": -5,
+            "people": -5,
+            "army": 0,
+            "wealth": 25
+          },
+          "leftChoiceStatusEffects": [],
+          "leftChoiceUnlockFlag": "",
+          "rightChoiceText": "Decline politely",
+          "rightChoiceModifiers": {
+            "religion": 5,
+            "people": 5,
+            "army": 0,
+            "wealth": -5
+          },
+          "rightChoiceStatusEffects": [],
+          "rightChoiceUnlockFlag": "",
+          "weather": "None",
+          "leftChoiceFactionDeltas": [
+            { "factionId": "merchant_guild", "delta": 8 }
+          ],
+          "rightChoiceFactionDeltas": [
+            { "factionId": "merchant_guild", "delta": -12 }
+          ]
+        },
+        {
+          "id": "faction_merchant_rebellion",
+          "scenarioText": "Guild banners burn in the market square. The merchants declare a rebellion of coin — caravans freeze, and your tax collectors vanish.",
+          "prerequisiteFlag": "",
+          "era": 99,
+          "portraitResourcePath": "Characters/Survivor/portrait",
+          "voiceResourcePath": "Characters/Survivor/voice",
+          "leftChoiceText": "Crush the guild",
+          "leftChoiceModifiers": {
+            "religion": 0,
+            "people": -10,
+            "army": -15,
+            "wealth": -20
+          },
+          "leftChoiceStatusEffects": [],
+          "leftChoiceUnlockFlag": "",
+          "rightChoiceText": "Buy their silence",
+          "rightChoiceModifiers": {
+            "religion": -5,
+            "people": 5,
+            "army": 0,
+            "wealth": -30
+          },
+          "rightChoiceStatusEffects": [],
+          "rightChoiceUnlockFlag": "",
+          "weather": "Dust",
+          "leftChoiceFactionDeltas": [
+            { "factionId": "merchant_guild", "delta": -10 }
+          ],
+          "rightChoiceFactionDeltas": [
+            { "factionId": "merchant_guild", "delta": 15 }
+          ]
+        },
+        {
+          "id": "faction_witches_boon",
+          "scenarioText": "Three sisters step from the fen mist. The Witches offer a boon of vitality — for a quiet shrine and your word.",
+          "prerequisiteFlag": "",
+          "era": 99,
+          "portraitResourcePath": "Characters/Priest/portrait",
+          "voiceResourcePath": "Characters/Priest/voice",
+          "leftChoiceText": "Accept the boon",
+          "leftChoiceModifiers": {
+            "religion": -15,
+            "people": 20,
+            "army": 5,
+            "wealth": 0
+          },
+          "leftChoiceStatusEffects": [],
+          "leftChoiceUnlockFlag": "",
+          "rightChoiceText": "Banish them",
+          "rightChoiceModifiers": {
+            "religion": 15,
+            "people": -10,
+            "army": 0,
+            "wealth": 0
+          },
+          "rightChoiceStatusEffects": [],
+          "rightChoiceUnlockFlag": "",
+          "weather": "Rain",
+          "leftChoiceFactionDeltas": [
+            { "factionId": "witches", "delta": 10 }
+          ],
+          "rightChoiceFactionDeltas": [
+            { "factionId": "witches", "delta": -20 }
+          ]
+        },
+        {
+          "id": "faction_witches_curse",
+          "scenarioText": "Crops blacken overnight. A curse from the fen — the Witches remind you what neglect costs.",
+          "prerequisiteFlag": "",
+          "era": 99,
+          "portraitResourcePath": "Characters/Priest/portrait",
+          "voiceResourcePath": "Characters/Priest/voice",
+          "leftChoiceText": "Beg forgiveness",
+          "leftChoiceModifiers": {
+            "religion": -10,
+            "people": 5,
+            "army": 0,
+            "wealth": -10
+          },
+          "leftChoiceStatusEffects": [],
+          "leftChoiceUnlockFlag": "",
+          "rightChoiceText": "Hunt the coven",
+          "rightChoiceModifiers": {
+            "religion": 10,
+            "people": -15,
+            "army": -10,
+            "wealth": -5
+          },
+          "rightChoiceStatusEffects": [],
+          "rightChoiceUnlockFlag": "",
+          "weather": "Rain",
+          "leftChoiceFactionDeltas": [
+            { "factionId": "witches", "delta": 18 }
+          ],
+          "rightChoiceFactionDeltas": [
+            { "factionId": "witches", "delta": -8 }
+          ]
+        },
+        {
+          "id": "faction_empire_alliance",
+          "scenarioText": "Imperial envoys unfurl a treaty of alliance. Their spears could guard your borders — or claim them.",
+          "prerequisiteFlag": "",
+          "era": 99,
+          "portraitResourcePath": "Characters/Diplomat/portrait",
+          "voiceResourcePath": "Characters/Diplomat/voice",
+          "leftChoiceText": "Sign the alliance",
+          "leftChoiceModifiers": {
+            "religion": -5,
+            "people": -5,
+            "army": 20,
+            "wealth": -15
+          },
+          "leftChoiceStatusEffects": [],
+          "leftChoiceUnlockFlag": "",
+          "rightChoiceText": "Keep them at arm's length",
+          "rightChoiceModifiers": {
+            "religion": 0,
+            "people": 5,
+            "army": -5,
+            "wealth": 5
+          },
+          "rightChoiceStatusEffects": [],
+          "rightChoiceUnlockFlag": "",
+          "weather": "None",
+          "leftChoiceFactionDeltas": [
+            { "factionId": "foreign_empire", "delta": 8 }
+          ],
+          "rightChoiceFactionDeltas": [
+            { "factionId": "foreign_empire", "delta": -10 }
+          ]
+        },
+        {
+          "id": "faction_empire_ultimatum",
+          "scenarioText": "An imperial rider delivers an ultimatum: open your passes and pay tribute, or face the legion.",
+          "prerequisiteFlag": "",
+          "era": 99,
+          "portraitResourcePath": "Characters/General/portrait",
+          "voiceResourcePath": "Characters/General/voice",
+          "leftChoiceText": "Pay tribute",
+          "leftChoiceModifiers": {
+            "religion": -5,
+            "people": -5,
+            "army": -10,
+            "wealth": -25
+          },
+          "leftChoiceStatusEffects": [],
+          "leftChoiceUnlockFlag": "",
+          "rightChoiceText": "Refuse and fortify",
+          "rightChoiceModifiers": {
+            "religion": 5,
+            "people": -10,
+            "army": 15,
+            "wealth": -15
+          },
+          "rightChoiceStatusEffects": [],
+          "rightChoiceUnlockFlag": "",
+          "weather": "Dust",
+          "leftChoiceFactionDeltas": [
+            { "factionId": "foreign_empire", "delta": 20 }
+          ],
+          "rightChoiceFactionDeltas": [
+            { "factionId": "foreign_empire", "delta": -12 }
+          ]
         }
       ]
     }

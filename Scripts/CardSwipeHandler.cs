@@ -35,8 +35,13 @@ public class CardSwipeHandler : MonoBehaviour,
     [SerializeField] private float snapBackSpeed = 12f;
 
     [Header("Discard")]
-    [SerializeField] private float discardDistance = 900f;
-    [SerializeField] private float discardDuration = 0.25f;
+    [SerializeField] private float discardDistance = 1100f;
+    [SerializeField] private float discardDuration = 0.34f;
+    [Tooltip("Peak lift of the discard arc (UI units).")]
+    [SerializeField] private float discardArcHeight = 90f;
+    [Tooltip("Slight downward settle at the end of the fly-out.")]
+    [SerializeField] private float discardDrop = 50f;
+    [SerializeField] private float discardEndScale = 0.82f;
 
     [Header("Events")]
     [SerializeField] private UnityEvent onSwipeLeft;
@@ -80,6 +85,9 @@ public class CardSwipeHandler : MonoBehaviour,
 
     public RectTransform RectTransform => rectTransform;
 
+    /// <summary>Resting anchored position used by deck-stack depth poses.</summary>
+    public Vector2 RestAnchoredPosition => startAnchoredPosition;
+
     private void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
@@ -92,6 +100,21 @@ public class CardSwipeHandler : MonoBehaviour,
         cardJuice = GetComponent<CardUIJuice>();
         if (cardJuice == null)
             cardJuice = gameObject.AddComponent<CardUIJuice>();
+
+        EnsureDeckStack();
+    }
+
+    private void EnsureDeckStack()
+    {
+        if (CardDeckStack.Instance != null)
+            return;
+
+        Transform parent = transform.parent;
+        if (parent == null)
+            return;
+
+        if (parent.GetComponent<CardDeckStack>() == null)
+            parent.gameObject.AddComponent<CardDeckStack>();
     }
 
     private void Update()
@@ -493,26 +516,44 @@ public class CardSwipeHandler : MonoBehaviour,
         inputEnabled = false;
         ClearFingerLock();
 
+        CardDeckStack deckStack = CardDeckStack.Instance;
+        if (deckStack != null)
+            deckStack.PlayAdvance();
+
         Vector2 from = rectTransform.anchoredPosition;
+        Vector3 fromScale = rectTransform.localScale;
         float direction = toTheLeft ? -1f : 1f;
         discardTargetScratch.x = startAnchoredPosition.x + direction * discardDistance;
-        discardTargetScratch.y = startAnchoredPosition.y;
+        discardTargetScratch.y = startAnchoredPosition.y - discardDrop;
         Vector2 to = discardTargetScratch;
         Quaternion fromRot = rectTransform.localRotation;
-        Quaternion toRot = startLocalRotation * Quaternion.Euler(0f, 0f, -direction * maxTiltDegrees * 2f);
+        Quaternion toRot = startLocalRotation * Quaternion.Euler(0f, 0f, -direction * maxTiltDegrees * 2.6f);
+        Vector3 toScale = fromScale * discardEndScale;
 
+        float duration = Mathf.Max(0.05f, discardDuration);
         float elapsed = 0f;
-        while (elapsed < discardDuration)
+        while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / discardDuration);
-            float eased = t * t * (3f - 2f * t);
-            rectTransform.anchoredPosition = Vector2.Lerp(from, to, eased);
-            rectTransform.localRotation = Quaternion.Lerp(fromRot, toRot, eased);
+            float t = Mathf.Clamp01(elapsed / duration);
+            // InCubic: slow start, strong acceleration off-screen.
+            float eased = t * t * t;
+            // Parabolic lift that collapses as the card accelerates away.
+            float arc = 4f * discardArcHeight * t * (1f - t) * (1f - eased * 0.55f);
+
+            discardTargetScratch.x = Mathf.LerpUnclamped(from.x, to.x, eased);
+            discardTargetScratch.y = Mathf.LerpUnclamped(from.y, to.y, eased) + arc;
+            rectTransform.anchoredPosition = discardTargetScratch;
+            rectTransform.localRotation = Quaternion.LerpUnclamped(fromRot, toRot, eased);
+            rectTransform.localScale = Vector3.LerpUnclamped(fromScale, toScale, eased);
             yield return null;
         }
 
+        rectTransform.localScale = fromScale;
         PrepareForNextCard();
+        if (deckStack != null)
+            deckStack.SettleBehindFront();
+
         IsDiscarding = false;
         discardRoutine = null;
         onComplete?.Invoke();

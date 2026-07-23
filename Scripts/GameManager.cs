@@ -169,6 +169,18 @@ public class GameManager : MonoBehaviour
         if (FindObjectOfType<DailyChallengeUI>() == null)
             new GameObject("DailyChallengeUI").AddComponent<DailyChallengeUI>();
 
+        if (QuestManager.Instance == null && FindObjectOfType<QuestManager>() == null)
+            new GameObject("QuestManager").AddComponent<QuestManager>();
+
+        if (FindObjectOfType<QuestUI>() == null)
+            new GameObject("QuestUI").AddComponent<QuestUI>();
+
+        if (FactionRelationshipManager.Instance == null && FindObjectOfType<FactionRelationshipManager>() == null)
+            new GameObject("FactionRelationshipManager").AddComponent<FactionRelationshipManager>();
+
+        if (FindObjectOfType<FactionLedgerUI>() == null)
+            new GameObject("FactionLedgerUI").AddComponent<FactionLedgerUI>();
+
         if (FindObjectOfType<AndroidSystemHandler>() == null)
             new GameObject("AndroidSystemHandler").AddComponent<AndroidSystemHandler>();
 
@@ -401,6 +413,9 @@ public class GameManager : MonoBehaviour
         tutorialStep = 0;
         statusEffects.Clear();
 
+        if (FactionRelationshipManager.Instance != null)
+            FactionRelationshipManager.Instance.ResetRelationships();
+
         if (EnvironmentManager.Instance != null)
             EnvironmentManager.Instance.ClearEnvironment();
 
@@ -439,6 +454,9 @@ public class GameManager : MonoBehaviour
             BeginTutorial();
             return;
         }
+
+        if (QuestManager.Instance != null)
+            QuestManager.Instance.BeginRun();
 
         RefillDrawPile();
         ShowNextCard();
@@ -506,6 +524,9 @@ public class GameManager : MonoBehaviour
         skipStatusTickOnce = true;
         forcedNextCardId = null;
 
+        if (QuestManager.Instance != null)
+            QuestManager.Instance.BeginRun();
+
         if (drawPile.Count == 0)
             RefillDrawPile();
 
@@ -544,7 +565,10 @@ public class GameManager : MonoBehaviour
             statusEffects = statusEffects.ToSaveArray(),
             inventoryItemIds = itemIds ?? new string[0],
             currentCardId = currentCard.id,
-            secondChanceUsedThisRun = secondChanceUsedThisRun
+            secondChanceUsedThisRun = secondChanceUsedThisRun,
+            factionLoyalties = FactionRelationshipManager.Instance != null
+                ? FactionRelationshipManager.Instance.CaptureSave()
+                : null
         };
     }
 
@@ -609,6 +633,9 @@ public class GameManager : MonoBehaviour
 
         kingdomStats.LoadState(data.religion, data.people, data.army, data.wealth);
         statusEffects.LoadFromSave(data.statusEffects);
+
+        if (FactionRelationshipManager.Instance != null)
+            FactionRelationshipManager.Instance.LoadSave(data.factionLoyalties);
 
         if (inventoryManager != null)
             inventoryManager.RestoreFromSave(data.inventoryItemIds);
@@ -894,8 +921,14 @@ public class GameManager : MonoBehaviour
         if (EnvironmentManager.Instance != null)
             EnvironmentManager.Instance.ApplyCardEnvironment(card);
 
-        if (!inTutorial && achievementManager != null)
-            achievementManager.NotifyCardSeen(card);
+        if (!inTutorial)
+        {
+            if (QuestManager.Instance != null)
+                QuestManager.Instance.NotifyCardSeen(card);
+
+            if (achievementManager != null)
+                achievementManager.NotifyCardSeen(card);
+        }
     }
 
     private void HandleSwipeLeft()
@@ -947,6 +980,10 @@ public class GameManager : MonoBehaviour
             ? currentCard.leftChoiceGrantItem
             : currentCard.rightChoiceGrantItem;
 
+        FactionDelta[] factionDeltas = isLeft
+            ? currentCard.leftChoiceFactionDeltas
+            : currentCard.rightChoiceFactionDeltas;
+
         // Grant before applying mods so a newly received charm can save this same choice.
         if (inventoryManager != null)
             inventoryManager.GrantItem(grantItemId);
@@ -973,6 +1010,11 @@ public class GameManager : MonoBehaviour
         statusEffects.AddRange(grantedEffects);
         TryGrantMetaFlag(unlockFlag);
         QueueForcedNextCard(nextCardId);
+
+        // After story follow-ups so faction crises insert behind an explicit NextCardID when both fire.
+        if (!inTutorial && FactionRelationshipManager.Instance != null)
+            FactionRelationshipManager.Instance.ApplyDeltas(factionDeltas);
+
         RefreshStatHud(immediate: false);
         RefreshStatusEffectUi();
         EvaluateDangerShake(beforeReligion, beforePeople, beforeArmy, beforeWealth);
@@ -991,6 +1033,9 @@ public class GameManager : MonoBehaviour
                 achievementManager.NotifyYearsRuled(YearsRuled);
                 achievementManager.NotifyWealthMaxed(kingdomStats.Wealth);
             }
+
+            if (QuestManager.Instance != null)
+                QuestManager.Instance.NotifyYearsRuled(YearsRuled);
         }
 
         if (cardSwipe != null)
@@ -1001,17 +1046,44 @@ public class GameManager : MonoBehaviour
 
     private void QueueForcedNextCard(string nextCardId)
     {
-        // Avoid Trim() allocation when IDs are already clean (normal JSON path).
+        // Empty / whitespace means "no story follow-up" — leave any faction queue intact.
         if (string.IsNullOrEmpty(nextCardId) || IsWhitespaceOnly(nextCardId))
-        {
-            forcedNextCardId = null;
             return;
-        }
 
         if (ContainsWhitespace(nextCardId))
             forcedNextCardId = nextCardId.Trim();
         else
             forcedNextCardId = nextCardId;
+    }
+
+    /// <summary>
+    /// Queues a faction crisis/offer card: forces next draw when free, otherwise
+    /// inserts at the front of the random draw pile so it appears soon.
+    /// </summary>
+    public void RequestFactionEventCard(string cardId)
+    {
+        if (string.IsNullOrEmpty(cardId) || IsWhitespaceOnly(cardId))
+            return;
+
+        string id = ContainsWhitespace(cardId) ? cardId.Trim() : cardId;
+        Card card = CardLoader.FindById(cardCatalog, id);
+        if (card == null)
+        {
+            Debug.LogWarning($"GameManager: Faction event card '{id}' not in catalog.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(forcedNextCardId))
+        {
+            forcedNextCardId = id;
+            return;
+        }
+
+        if (string.Equals(forcedNextCardId, id, System.StringComparison.Ordinal))
+            return;
+
+        RemoveFromDrawPileById(id);
+        drawPile.Insert(0, card);
     }
 
     private static bool IsWhitespaceOnly(string value)
@@ -1084,6 +1156,9 @@ public class GameManager : MonoBehaviour
         hasActiveRun = false;
         isResolvingChoice = false;
         pendingDeathCause = cause;
+
+        if (QuestManager.Instance != null)
+            QuestManager.Instance.EndRun();
 
         if (saveManager != null)
             saveManager.DeleteSave();
