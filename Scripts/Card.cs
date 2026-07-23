@@ -42,6 +42,24 @@ public class Card
     /// </summary>
     public string prerequisiteFlag;
 
+    /// <summary>
+    /// Resources path to the character portrait sprite (no extension), e.g. "Characters/Priest/portrait".
+    /// Resolved into <see cref="portrait"/> after JSON load.
+    /// </summary>
+    public string portraitResourcePath;
+
+    /// <summary>
+    /// Resources path to the character speaking clip (no extension), e.g. "Characters/Priest/voice".
+    /// Resolved into <see cref="speakingSound"/> after JSON load.
+    /// </summary>
+    public string voiceResourcePath;
+
+    /// <summary>Character portrait shown on the card UI.</summary>
+    [NonSerialized] public Sprite portrait;
+
+    /// <summary>Short vocal clip played when this card is drawn.</summary>
+    [NonSerialized] public AudioClip speakingSound;
+
     public string leftChoiceText;
     public StatModifiers leftChoiceModifiers;
     public StatusEffect[] leftChoiceStatusEffects;
@@ -53,6 +71,31 @@ public class Card
     public StatusEffect[] rightChoiceStatusEffects;
     /// <summary>Meta flag granted when the player picks the right choice (persists across runs).</summary>
     public string rightChoiceUnlockFlag;
+
+    /// <summary>
+    /// Optional. If set, a left swipe queues this card ID as the next draw (skips the random pool).
+    /// </summary>
+    public string NextCardID_Left;
+
+    /// <summary>
+    /// Optional. If set, a right swipe queues this card ID as the next draw (skips the random pool).
+    /// </summary>
+    public string NextCardID_Right;
+
+    /// <summary>
+    /// Loads <see cref="portrait"/> and <see cref="speakingSound"/> from Resources using the path fields.
+    /// </summary>
+    public void ResolveAssets()
+    {
+        portrait = null;
+        speakingSound = null;
+
+        if (!string.IsNullOrWhiteSpace(portraitResourcePath))
+            portrait = Resources.Load<Sprite>(portraitResourcePath);
+
+        if (!string.IsNullOrWhiteSpace(voiceResourcePath))
+            speakingSound = Resources.Load<AudioClip>(voiceResourcePath);
+    }
 }
 
 /// <summary>

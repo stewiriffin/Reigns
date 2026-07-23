@@ -16,6 +16,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] private CardSwipeHandler cardSwipe;
     [SerializeField] private UIManager uiManager;
     [SerializeField] private AdManager adManager;
+    [SerializeField] private KingdomAtmosphere atmosphere;
+    [SerializeField] private CardVoicePlayer cardVoicePlayer;
 
     [Header("Deck")]
     [SerializeField] private string cardsResourcePath = "Cards/event_cards";
@@ -25,6 +27,7 @@ public class GameManager : MonoBehaviour
 
     private readonly List<Card> deck = new List<Card>();
     private readonly List<Card> drawPile = new List<Card>();
+    private readonly List<Card> cardCatalog = new List<Card>();
     private readonly StatusEffectTracker statusEffects = new StatusEffectTracker();
     private Dictionary<DeathCause, string> deathMessages;
 
@@ -34,6 +37,7 @@ public class GameManager : MonoBehaviour
     private bool secondChanceUsedThisDeath;
     private bool gameOverSequenceRunning;
     private string lastCardId;
+    private string forcedNextCardId;
     private DeathCause pendingDeathCause = DeathCause.None;
 
     /// <summary>Current run score — one year per successfully resolved card.</summary>
@@ -55,6 +59,12 @@ public class GameManager : MonoBehaviour
 
         if (adManager == null)
             adManager = AdManager.Instance != null ? AdManager.Instance : FindObjectOfType<AdManager>();
+
+        if (atmosphere == null)
+            atmosphere = FindObjectOfType<KingdomAtmosphere>();
+
+        if (cardVoicePlayer == null)
+            cardVoicePlayer = FindObjectOfType<CardVoicePlayer>();
 
         LongestReign = PlayerPrefs.GetInt(LongestReignPrefsKey, 0);
         deathMessages = DeathMessageLoader.Load(deathMessagesResourcePath);
@@ -117,6 +127,7 @@ public class GameManager : MonoBehaviour
         secondChanceUsedThisDeath = false;
         lastCardId = null;
         currentCard = null;
+        forcedNextCardId = null;
         pendingDeathCause = DeathCause.None;
         YearsRuled = 0;
         skipStatusTickOnce = true;
@@ -132,6 +143,9 @@ public class GameManager : MonoBehaviour
         RefreshStatHud(immediate: true);
         RefreshScoreHud();
 
+        if (atmosphere != null)
+            atmosphere.RefreshImmediate();
+
         LoadDeck();
         RefillDrawPile();
 
@@ -146,16 +160,23 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// Loads the base deck, then injects unlockable-pool cards whose prerequisite flags are set.
+    /// Also builds a full catalog so chained NextCardID lookups can resolve any card by ID.
     /// </summary>
     private void LoadDeck()
     {
+        CardDatabase database = CardLoader.LoadDatabase(cardsResourcePath);
+        CardLoader.ResolveAllAssets(database);
+
+        cardCatalog.Clear();
+        cardCatalog.AddRange(CardLoader.FlattenCatalog(database));
+
         deck.Clear();
-        deck.AddRange(CardLoader.LoadActiveDeck(cardsResourcePath));
+        deck.AddRange(CardLoader.BuildActiveDeck(database));
 
         if (deck.Count == 0)
             Debug.LogError("GameManager: Active deck is empty. Check Resources path and JSON.");
         else
-            Debug.Log($"GameManager: Active deck built with {deck.Count} card(s).");
+            Debug.Log($"GameManager: Active deck built with {deck.Count} card(s). Catalog={cardCatalog.Count}.");
     }
 
     private void RefillDrawPile()
@@ -180,13 +201,16 @@ public class GameManager : MonoBehaviour
             skipStatusTickOnce = false;
         }
 
-        if (deck.Count == 0)
+        if (deck.Count == 0 && string.IsNullOrWhiteSpace(forcedNextCardId))
             return;
 
-        if (drawPile.Count == 0)
-            RefillDrawPile();
+        Card next = DrawNextCard();
+        if (next == null)
+        {
+            Debug.LogError("GameManager: Failed to draw a card.");
+            return;
+        }
 
-        Card next = DrawCardAvoidingRepeat();
         DisplayCard(next);
 
         if (cardSwipe != null)
@@ -199,6 +223,48 @@ public class GameManager : MonoBehaviour
 
         if (uiManager != null)
             uiManager.ClearSwipeFeedback();
+    }
+
+    /// <summary>
+    /// Draws a forced follow-up card when queued; otherwise pulls from the random draw pile.
+    /// </summary>
+    private Card DrawNextCard()
+    {
+        if (!string.IsNullOrWhiteSpace(forcedNextCardId))
+        {
+            string id = forcedNextCardId;
+            forcedNextCardId = null;
+
+            Card forced = CardLoader.FindById(cardCatalog, id);
+            if (forced != null)
+            {
+                // Keep the random pile coherent if this card was sitting in it.
+                RemoveFromDrawPileById(id);
+                return forced;
+            }
+
+            Debug.LogWarning($"GameManager: NextCardID '{id}' not found in catalog — falling back to random draw.");
+        }
+
+        if (drawPile.Count == 0)
+            RefillDrawPile();
+
+        if (drawPile.Count == 0)
+            return null;
+
+        return DrawCardAvoidingRepeat();
+    }
+
+    private void RemoveFromDrawPileById(string id)
+    {
+        if (string.IsNullOrEmpty(id))
+            return;
+
+        for (int i = drawPile.Count - 1; i >= 0; i--)
+        {
+            if (drawPile[i] != null && drawPile[i].id == id)
+                drawPile.RemoveAt(i);
+        }
     }
 
     private bool ProcessStatusEffects()
@@ -265,6 +331,9 @@ public class GameManager : MonoBehaviour
 
         if (uiManager != null)
             uiManager.UpdateCardUI(card);
+
+        if (cardVoicePlayer != null)
+            cardVoicePlayer.PlayCardVoice(card);
     }
 
     private void HandleSwipeLeft()
@@ -302,9 +371,14 @@ public class GameManager : MonoBehaviour
             ? currentCard.leftChoiceUnlockFlag
             : currentCard.rightChoiceUnlockFlag;
 
+        string nextCardId = isLeft
+            ? currentCard.NextCardID_Left
+            : currentCard.NextCardID_Right;
+
         modifiers?.Apply(kingdomStats);
         statusEffects.AddRange(grantedEffects);
         TryGrantMetaFlag(unlockFlag);
+        QueueForcedNextCard(nextCardId);
         RefreshStatHud(immediate: false);
         RefreshStatusEffectUi();
 
@@ -315,6 +389,11 @@ public class GameManager : MonoBehaviour
             cardSwipe.DiscardCard(isLeft, OnDiscardComplete);
         else
             OnDiscardComplete();
+    }
+
+    private void QueueForcedNextCard(string nextCardId)
+    {
+        forcedNextCardId = string.IsNullOrWhiteSpace(nextCardId) ? null : nextCardId.Trim();
     }
 
     private void OnDiscardComplete()
@@ -438,6 +517,9 @@ public class GameManager : MonoBehaviour
         RefreshStatHud(immediate: true);
         RefreshScoreHud();
         RefreshStatusEffectUi();
+
+        if (atmosphere != null)
+            atmosphere.RefreshImmediate();
 
         if (uiManager != null)
         {

@@ -62,6 +62,33 @@ public static class CardLoader
     }
 
     /// <summary>
+    /// Loads Sprite / AudioClip references on every card via Resources paths.
+    /// </summary>
+    public static void ResolveAllAssets(CardDatabase database)
+    {
+        if (database == null)
+            return;
+
+        if (database.baseDeck != null)
+        {
+            foreach (Card card in database.baseDeck)
+                card?.ResolveAssets();
+        }
+
+        if (database.unlockablePools == null)
+            return;
+
+        foreach (UnlockableCardPool pool in database.unlockablePools)
+        {
+            if (pool?.cards == null)
+                continue;
+
+            foreach (Card card in pool.cards)
+                card?.ResolveAssets();
+        }
+    }
+
+    /// <summary>
     /// Builds the active draw deck: all base cards, plus unlockable cards whose
     /// <see cref="Card.prerequisiteFlag"/> is unlocked (or empty).
     /// </summary>
@@ -106,11 +133,60 @@ public static class CardLoader
     }
 
     /// <summary>
-    /// Convenience: load JSON and build the active deck in one call.
+    /// Convenience: load JSON, resolve art/audio, and build the active deck.
     /// </summary>
     public static List<Card> LoadActiveDeck(string resourcePath = DefaultResourcePath)
     {
-        return BuildActiveDeck(LoadDatabase(resourcePath));
+        CardDatabase database = LoadDatabase(resourcePath);
+        ResolveAllAssets(database);
+        return BuildActiveDeck(database);
+    }
+
+    /// <summary>
+    /// Flattens every card in the database (base + all unlockable pools), regardless of unlock flags.
+    /// Used to resolve forced follow-up cards by ID.
+    /// </summary>
+    public static List<Card> FlattenCatalog(CardDatabase database)
+    {
+        var catalog = new List<Card>();
+        if (database == null)
+            return catalog;
+
+        if (database.baseDeck != null)
+        {
+            foreach (Card card in database.baseDeck)
+            {
+                if (card != null)
+                    catalog.Add(card);
+            }
+        }
+
+        if (database.unlockablePools == null)
+            return DeduplicateById(catalog);
+
+        foreach (UnlockableCardPool pool in database.unlockablePools)
+        {
+            if (pool?.cards == null)
+                continue;
+
+            foreach (Card card in pool.cards)
+            {
+                if (card != null)
+                    catalog.Add(card);
+            }
+        }
+
+        return DeduplicateById(catalog);
+    }
+
+    /// <summary>
+    /// Loads JSON, resolves assets, and returns the full card catalog (for ID lookups / chains).
+    /// </summary>
+    public static List<Card> LoadCatalog(string resourcePath = DefaultResourcePath)
+    {
+        CardDatabase database = LoadDatabase(resourcePath);
+        ResolveAllAssets(database);
+        return FlattenCatalog(database);
     }
 
     /// <summary>
@@ -120,6 +196,7 @@ public static class CardLoader
     public static List<Card> LoadCards(string resourcePath = DefaultResourcePath)
     {
         CardDatabase database = LoadDatabase(resourcePath);
+        ResolveAllAssets(database);
         if (database.baseDeck == null || database.baseDeck.Length == 0)
             return new List<Card>();
 

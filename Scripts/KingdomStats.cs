@@ -128,6 +128,7 @@ public class KingdomStats : MonoBehaviour
 
         IsGameOver = true;
         LastDeathCause = cause;
+        HapticFeedback.PlayHeavy();
         OnGameOver?.Invoke(cause);
         Debug.Log($"Game Over — {cause}");
     }

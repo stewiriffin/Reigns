@@ -53,6 +53,7 @@ public class CardSwipeHandler : MonoBehaviour,
     private bool isSnappingBack;
     private bool choiceCommitted;
     private bool inputEnabled = true;
+    private bool crossedDecisionThreshold;
     private Canvas parentCanvas;
     private float canvasScaleFactor = 1f;
     private Coroutine discardRoutine;
@@ -112,6 +113,7 @@ public class CardSwipeHandler : MonoBehaviour,
 
         isDragging = true;
         isSnappingBack = false;
+        crossedDecisionThreshold = false;
         dragStartScreenPos = eventData.position;
     }
 
@@ -127,7 +129,27 @@ public class CardSwipeHandler : MonoBehaviour,
         ApplyTiltFromDrag(clampedX);
 
         NormalizedSwipe = Mathf.Clamp(clampedX / swipeThreshold, -1f, 1f);
+        UpdateDecisionThresholdHaptic(Mathf.Abs(clampedX));
         OnSwipeProgress?.Invoke(NormalizedSwipe);
+    }
+
+    /// <summary>
+    /// Fires a light haptic once when the drag first crosses the commit threshold.
+    /// Resets if the player pulls back inside the threshold.
+    /// </summary>
+    private void UpdateDecisionThresholdHaptic(float absDeltaX)
+    {
+        bool pastThreshold = absDeltaX >= swipeThreshold;
+
+        if (pastThreshold && !crossedDecisionThreshold)
+        {
+            crossedDecisionThreshold = true;
+            HapticFeedback.PlayLight();
+        }
+        else if (!pastThreshold && crossedDecisionThreshold)
+        {
+            crossedDecisionThreshold = false;
+        }
     }
 
     public void OnEndDrag(PointerEventData eventData)
@@ -266,6 +288,7 @@ public class CardSwipeHandler : MonoBehaviour,
         isDragging = false;
         isSnappingBack = false;
         choiceCommitted = false;
+        crossedDecisionThreshold = false;
         IsDiscarding = false;
         inputEnabled = true;
         NormalizedSwipe = 0f;

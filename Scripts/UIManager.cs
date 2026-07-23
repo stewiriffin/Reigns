@@ -45,6 +45,10 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI leftChoiceText;
     [SerializeField] private TextMeshProUGUI rightChoiceText;
 
+    [Header("Card Portrait")]
+    [SerializeField] private Image characterPortraitImage;
+    [SerializeField] private bool hidePortraitWhenMissing = true;
+
     [Header("Score")]
     [SerializeField] private TextMeshProUGUI yearsRuledText;
     [SerializeField] private TextMeshProUGUI longestReignText;
@@ -179,7 +183,7 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Fills scenario and choice labels from the drawn card, then hides swipe hints.
+    /// Fills scenario, choices, and character portrait from the drawn card, then hides swipe hints.
     /// </summary>
     public void UpdateCardUI(Card card)
     {
@@ -194,7 +198,25 @@ public class UIManager : MonoBehaviour
         if (rightChoiceText != null)
             rightChoiceText.text = card != null ? card.rightChoiceText : string.Empty;
 
+        UpdatePortrait(card);
         ClearSwipeFeedback();
+    }
+
+    private void UpdatePortrait(Card card)
+    {
+        if (characterPortraitImage == null)
+            return;
+
+        Sprite portrait = card != null ? card.portrait : null;
+        characterPortraitImage.sprite = portrait;
+        characterPortraitImage.enabled = portrait != null || !hidePortraitWhenMissing;
+
+        if (portrait == null)
+            characterPortraitImage.color = hidePortraitWhenMissing
+                ? new Color(1f, 1f, 1f, 0f)
+                : Color.white;
+        else
+            characterPortraitImage.color = Color.white;
     }
 
     /// <summary>

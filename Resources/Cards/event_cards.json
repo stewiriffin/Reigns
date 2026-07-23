@@ -4,6 +4,8 @@
       "id": "plague_in_the_capital",
       "scenarioText": "A strange illness spreads through the capital. The High Priest urges public prayer; your advisors demand quarantine and coin for physicians.",
       "prerequisiteFlag": "",
+      "portraitResourcePath": "Characters/Priest/portrait",
+      "voiceResourcePath": "Characters/Priest/voice",
       "leftChoiceText": "Hold a city-wide prayer",
       "leftChoiceModifiers": {
         "religion": 15,
@@ -33,6 +35,8 @@
       "id": "border_raiders",
       "scenarioText": "Raiders burn villages along the eastern border. Generals demand a full campaign; merchants beg you to buy the raiders off instead.",
       "prerequisiteFlag": "",
+      "portraitResourcePath": "Characters/General/portrait",
+      "voiceResourcePath": "Characters/General/voice",
       "leftChoiceText": "March the army east",
       "leftChoiceModifiers": {
         "religion": 0,
@@ -68,6 +72,8 @@
       "id": "royal_wedding",
       "scenarioText": "A neighboring kingdom offers a marriage alliance. The Church calls it a blessing; the treasury warns the feast will empty the coffers.",
       "prerequisiteFlag": "",
+      "portraitResourcePath": "Characters/Diplomat/portrait",
+      "voiceResourcePath": "Characters/Diplomat/voice",
       "leftChoiceText": "Accept and celebrate grandly",
       "leftChoiceModifiers": {
         "religion": 10,
@@ -97,6 +103,8 @@
       "id": "traveling_hunter",
       "scenarioText": "A scarred hunter kneels before the throne. He swears a winged shadow nests in the northern peaks — and offers to lead an expedition.",
       "prerequisiteFlag": "",
+      "portraitResourcePath": "Characters/Hunter/portrait",
+      "voiceResourcePath": "Characters/Hunter/voice",
       "leftChoiceText": "Fund the expedition",
       "leftChoiceModifiers": {
         "religion": -5,
@@ -106,6 +114,7 @@
       },
       "leftChoiceStatusEffects": [],
       "leftChoiceUnlockFlag": "Discovered_Dragon",
+      "NextCardID_Left": "dragon_expedition_report",
       "rightChoiceText": "Dismiss him as a liar",
       "rightChoiceModifiers": {
         "religion": 5,
@@ -114,7 +123,35 @@
         "wealth": 5
       },
       "rightChoiceStatusEffects": [],
-      "rightChoiceUnlockFlag": ""
+      "rightChoiceUnlockFlag": "",
+      "NextCardID_Right": ""
+    },
+    {
+      "id": "dragon_expedition_report",
+      "scenarioText": "The hunter returns at dusk, ash on his cloak. He drops a black scale at your feet — proof the northern peaks are not empty.",
+      "prerequisiteFlag": "",
+      "portraitResourcePath": "Characters/Hunter/portrait",
+      "voiceResourcePath": "Characters/Hunter/voice",
+      "leftChoiceText": "Prepare the realm for war",
+      "leftChoiceModifiers": {
+        "religion": -5,
+        "people": -5,
+        "army": 15,
+        "wealth": -10
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "NextCardID_Left": "",
+      "rightChoiceText": "Seal the news in the vault",
+      "rightChoiceModifiers": {
+        "religion": 5,
+        "people": 5,
+        "army": -5,
+        "wealth": 5
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": "",
+      "NextCardID_Right": ""
     }
   ],
   "unlockablePools": [
@@ -125,6 +162,8 @@
           "id": "dragon_tribute",
           "scenarioText": "The dragon of the northern peaks circles the capital. Priests demand offerings; generals urge a siege of its lair.",
           "prerequisiteFlag": "Discovered_Dragon",
+          "portraitResourcePath": "Characters/DragonMessenger/portrait",
+          "voiceResourcePath": "Characters/DragonMessenger/voice",
           "leftChoiceText": "Send sacred offerings",
           "leftChoiceModifiers": {
             "religion": 15,
@@ -159,6 +198,8 @@
           "id": "dragon_hoard",
           "scenarioText": "Survivors of the dragon war drag chests of scorched gold into the courtyard. The people cheer — the Church calls it cursed.",
           "prerequisiteFlag": "Slayed_Dragon",
+          "portraitResourcePath": "Characters/Survivor/portrait",
+          "voiceResourcePath": "Characters/Survivor/voice",
           "leftChoiceText": "Claim the hoard for the crown",
           "leftChoiceModifiers": {
             "religion": -15,
