@@ -179,6 +179,7 @@ public class CardEditorWindow : EditorWindow
             card.scenarioText = EditorGUILayout.TextField("Scenario Text / Loc Key", card.scenarioText ?? string.Empty);
             card.prerequisiteFlag = EditorGUILayout.TextField("Prerequisite Flag", card.prerequisiteFlag ?? string.Empty);
             card.era = EditorGUILayout.IntSlider(new GUIContent("Era Filter", "0 = any era, 1/2/3 = only that era"), card.era, 0, 3);
+            card.weather = EditorGUILayout.TextField(new GUIContent("Weather", "Snow, Rain, Embers, Dust, or None"), card.weather ?? string.Empty);
             card.portraitResourcePath = EditorGUILayout.TextField("Portrait Resource Path", card.portraitResourcePath ?? string.Empty);
             card.voiceResourcePath = EditorGUILayout.TextField("Voice Resource Path", card.voiceResourcePath ?? string.Empty);
 
@@ -714,6 +715,7 @@ public class CardEditorWindow : EditorWindow
             scenarioText = string.Empty,
             prerequisiteFlag = string.Empty,
             era = 0,
+            weather = string.Empty,
             portraitResourcePath = string.Empty,
             voiceResourcePath = string.Empty,
             leftChoiceText = string.Empty,

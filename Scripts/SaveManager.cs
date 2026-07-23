@@ -78,6 +78,9 @@ public class SaveManager : MonoBehaviour
     /// </summary>
     public void SaveGame()
     {
+        if (DailyChallengeManager.Instance != null && DailyChallengeManager.Instance.IsDailyRunActive)
+            return;
+
         if (gameManager == null || !gameManager.CanAutoSave)
             return;
 

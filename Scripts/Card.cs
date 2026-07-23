@@ -91,6 +91,13 @@ public class Card
     public int era;
 
     /// <summary>
+    /// Ambient weather / environment tag for background particles
+    /// (e.g. "Snow", "Rain", "Embers", "Dust", "None").
+    /// JSON field: "weather".
+    /// </summary>
+    public string weather;
+
+    /// <summary>
     /// Resources path to the character portrait sprite (no extension), e.g. "Characters/Priest/portrait".
     /// Resolved into <see cref="portrait"/> after JSON load.
     /// </summary>

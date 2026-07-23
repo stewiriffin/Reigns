@@ -226,6 +226,29 @@ public class DebugConsole : MonoBehaviour
             statusMessage = "PlayerPrefs cleared + run save deleted.";
         }
 
+        if (GUILayout.Button("Clear Dynasty History", buttonStyle))
+        {
+            if (DynastyHistoryManager.Instance != null)
+                DynastyHistoryManager.Instance.ClearHistory();
+            statusMessage = "Dynasty history cleared.";
+        }
+
+        if (GUILayout.Button("Clear Today's Daily Challenge", buttonStyle))
+        {
+            if (DailyChallengeManager.Instance != null)
+            {
+                string key = DailyChallengeManager.Instance.TodayKey;
+                PlayerPrefs.DeleteKey("DailyScore_" + key);
+                PlayerPrefs.DeleteKey("DailyAttempt_" + key);
+                PlayerPrefs.Save();
+                statusMessage = "Today's Daily Challenge reset.";
+            }
+            else
+            {
+                statusMessage = "DailyChallengeManager missing.";
+            }
+        }
+
         if (GUILayout.Button("Close Panel", buttonStyle))
             panelVisible = false;
     }

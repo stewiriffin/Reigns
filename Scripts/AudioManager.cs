@@ -48,6 +48,11 @@ public class AudioManager : MonoBehaviour
     private float bgmFadeMultiplier = 1f;
     private bool mutedForFullscreenAd;
     private bool mutedForAppPause;
+    private DynamicMusicController dynamicMusic;
+    private bool dynamicMusicOwnsBgm;
+
+    /// <summary>Mixer group used by adaptive Normal/Crisis layers.</summary>
+    public AudioMixerGroup BgmMixerGroup => bgmMixerGroup;
 
     private void Awake()
     {
@@ -76,13 +81,55 @@ public class AudioManager : MonoBehaviour
         idleBgmSource = bgmSourceB;
         ApplyMixerRouting();
         ApplyVolumes();
+
+        if (GetComponent<DynamicMusicController>() == null)
+            gameObject.AddComponent<DynamicMusicController>();
+        if (GetComponent<DynamicMusicClipBootstrap>() == null)
+            gameObject.AddComponent<DynamicMusicClipBootstrap>();
     }
 
     private void Start()
     {
+        // Adaptive dual-layer BGM owns playback when both clips are assigned.
+        dynamicMusic = DynamicMusicController.Instance != null
+            ? DynamicMusicController.Instance
+            : GetComponent<DynamicMusicController>();
+
+        if (dynamicMusic != null && dynamicMusic.HasClips)
+        {
+            dynamicMusicOwnsBgm = true;
+            return;
+        }
+
         if (defaultBgm != null && activeBgmSource != null && !activeBgmSource.isPlaying)
             PlayBGM(defaultBgm, loop: true);
     }
+
+    public void RegisterDynamicMusic(DynamicMusicController controller)
+    {
+        dynamicMusic = controller;
+    }
+
+    public void UnregisterDynamicMusic(DynamicMusicController controller)
+    {
+        if (dynamicMusic == controller)
+            dynamicMusic = null;
+        dynamicMusicOwnsBgm = false;
+    }
+
+    public void NotifyDynamicMusicStarted()
+    {
+        dynamicMusicOwnsBgm = true;
+        // Stop legacy single-track sources so they don't stack under adaptive layers.
+        if (bgmSourceA != null && bgmSourceA.isPlaying)
+            bgmSourceA.Stop();
+        if (bgmSourceB != null && bgmSourceB.isPlaying)
+            bgmSourceB.Stop();
+    }
+
+    /// <summary>Effective BGM bus level after mute flags (0–1), for adaptive layer gain.</summary>
+    public float GetBgmBusOutputVolume() => GetBgmOutputVolume();
+
 
     private void EnsureSources()
     {
@@ -121,6 +168,10 @@ public class AudioManager : MonoBehaviour
     public void PlayBGM(AudioClip clip, bool loop)
     {
         if (clip == null || activeBgmSource == null)
+            return;
+
+        // Adaptive Normal/Crisis layers own BGM when configured.
+        if (dynamicMusicOwnsBgm && dynamicMusic != null && dynamicMusic.HasClips)
             return;
 
         // Same clip already playing — just ensure loop flag.
@@ -284,7 +335,13 @@ public class AudioManager : MonoBehaviour
     {
         ApplyVolumes();
 
+        if (dynamicMusic != null)
+            dynamicMusic.RefreshVolumes();
+
         bool muted = mutedForFullscreenAd || mutedForAppPause;
+        if (dynamicMusicOwnsBgm)
+            return;
+
         if (activeBgmSource != null && activeBgmSource.isPlaying)
             activeBgmSource.volume = GetBgmOutputVolume() * bgmFadeMultiplier;
         if (idleBgmSource != null && idleBgmSource.isPlaying)
@@ -293,6 +350,12 @@ public class AudioManager : MonoBehaviour
 
     public void StopBGM(bool fade = true)
     {
+        if (dynamicMusic != null && dynamicMusicOwnsBgm)
+        {
+            dynamicMusic.StopLayers(fade);
+            return;
+        }
+
         if (crossfadeRoutine != null)
         {
             StopCoroutine(crossfadeRoutine);
@@ -390,6 +453,16 @@ public class AudioManager : MonoBehaviour
 
     private void ApplyVolumes()
     {
+        if (dynamicMusic != null)
+            dynamicMusic.RefreshVolumes();
+
+        if (dynamicMusicOwnsBgm)
+        {
+            if (sfxSource != null)
+                sfxSource.volume = 1f;
+            return;
+        }
+
         if (activeBgmSource != null && activeBgmSource.isPlaying)
             activeBgmSource.volume = GetBgmOutputVolume() * bgmFadeMultiplier;
 

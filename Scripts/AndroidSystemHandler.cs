@@ -105,6 +105,14 @@ public class AndroidSystemHandler : MonoBehaviour
             return;
         }
 
+        if (DynastyHallVisible())
+        {
+            var hall = FindObjectOfType<DynastyHallUI>();
+            if (hall != null)
+                hall.Hide();
+            return;
+        }
+
         UIFadeTransition.ScreenId screen = ResolveCurrentScreen();
 
         switch (screen)
@@ -117,6 +125,8 @@ public class AndroidSystemHandler : MonoBehaviour
                 break;
             case UIFadeTransition.ScreenId.GameOver:
                 // Prefer returning toward start rather than quitting mid-result.
+                if (DynastyHistoryManager.Instance != null)
+                    DynastyHistoryManager.Instance.CommitPendingRecord();
                 if (UIFadeTransition.Instance != null)
                     UIFadeTransition.Instance.SnapTo(UIFadeTransition.ScreenId.StartMenu);
                 break;
@@ -217,6 +227,12 @@ public class AndroidSystemHandler : MonoBehaviour
     {
         var settings = FindObjectOfType<SettingsMenu>();
         return settings != null && settings.IsOpen;
+    }
+
+    private static bool DynastyHallVisible()
+    {
+        var hall = FindObjectOfType<DynastyHallUI>();
+        return hall != null && hall.IsOpen;
     }
 
     private void ShowNativeQuitConfirmation()

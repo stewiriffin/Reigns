@@ -30,7 +30,8 @@
           "duration": 3
         }
       ],
-      "rightChoiceUnlockFlag": ""
+      "rightChoiceUnlockFlag": "",
+      "weather": "Dust"
     },
     {
       "id": "border_raiders",
@@ -69,7 +70,8 @@
           "duration": 3
         }
       ],
-      "rightChoiceUnlockFlag": ""
+      "rightChoiceUnlockFlag": "",
+      "weather": "Dust"
     },
     {
       "id": "royal_wedding",
@@ -104,7 +106,8 @@
       "rightChoiceUnlockFlag": "",
       "rightChoiceGrantItem": "holy_relic",
       "NextCardID_Left": "",
-      "NextCardID_Right": ""
+      "NextCardID_Right": "",
+      "weather": "None"
     },
     {
       "id": "traveling_hunter",
@@ -132,7 +135,8 @@
       },
       "rightChoiceStatusEffects": [],
       "rightChoiceUnlockFlag": "",
-      "NextCardID_Right": ""
+      "NextCardID_Right": "",
+      "weather": "Snow"
     },
     {
       "id": "dragon_expedition_report",
@@ -160,7 +164,8 @@
       },
       "rightChoiceStatusEffects": [],
       "rightChoiceUnlockFlag": "",
-      "NextCardID_Right": ""
+      "NextCardID_Right": "",
+      "weather": "Snow"
     },
     {
       "id": "peasant_uprising",
@@ -192,7 +197,8 @@
           "duration": 3
         }
       ],
-      "rightChoiceUnlockFlag": ""
+      "rightChoiceUnlockFlag": "",
+      "weather": "Rain"
     },
     {
       "id": "famine_of_ashes",
@@ -224,7 +230,8 @@
         "wealth": -25
       },
       "rightChoiceStatusEffects": [],
-      "rightChoiceUnlockFlag": ""
+      "rightChoiceUnlockFlag": "",
+      "weather": "Embers"
     },
     {
       "id": "foreign_empire",
@@ -256,7 +263,8 @@
           "duration": 4
         }
       ],
-      "rightChoiceUnlockFlag": ""
+      "rightChoiceUnlockFlag": "",
+      "weather": "Dust"
     }
   ],
   "unlockablePools": [
@@ -293,7 +301,8 @@
               "duration": 3
             }
           ],
-          "rightChoiceUnlockFlag": "Slayed_Dragon"
+          "rightChoiceUnlockFlag": "Slayed_Dragon",
+          "weather": "Embers"
         }
       ]
     },
@@ -324,7 +333,8 @@
             "wealth": -10
           },
           "rightChoiceStatusEffects": [],
-          "rightChoiceUnlockFlag": ""
+          "rightChoiceUnlockFlag": "",
+          "weather": "Embers"
         }
       ]
     }

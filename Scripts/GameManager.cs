@@ -78,7 +78,8 @@ public class GameManager : MonoBehaviour
         hasActiveRun &&
         !kingdomStats.IsGameOver &&
         !gameOverSequenceRunning &&
-        currentCard != null;
+        currentCard != null &&
+        (DailyChallengeManager.Instance == null || !DailyChallengeManager.Instance.IsDailyRunActive);
 
     private void Awake()
     {
@@ -147,11 +148,26 @@ public class GameManager : MonoBehaviour
         if (AccessibilityManager.Instance == null && FindObjectOfType<AccessibilityManager>() == null)
             new GameObject("AccessibilityManager").AddComponent<AccessibilityManager>();
 
+        if (DynastyHistoryManager.Instance == null && FindObjectOfType<DynastyHistoryManager>() == null)
+            new GameObject("DynastyHistoryManager").AddComponent<DynastyHistoryManager>();
+
+        if (FindObjectOfType<DynastyHallUI>() == null)
+            new GameObject("DynastyHallUI").AddComponent<DynastyHallUI>();
+
         if (FindObjectOfType<SettingsMenu>() == null)
             new GameObject("SettingsMenu").AddComponent<SettingsMenu>();
 
         if (FindObjectOfType<FloatingStatText>() == null)
             new GameObject("FloatingStatText").AddComponent<FloatingStatText>();
+
+        if (EnvironmentManager.Instance == null && FindObjectOfType<EnvironmentManager>() == null)
+            new GameObject("EnvironmentManager").AddComponent<EnvironmentManager>();
+
+        if (DailyChallengeManager.Instance == null && FindObjectOfType<DailyChallengeManager>() == null)
+            new GameObject("DailyChallengeManager").AddComponent<DailyChallengeManager>();
+
+        if (FindObjectOfType<DailyChallengeUI>() == null)
+            new GameObject("DailyChallengeUI").AddComponent<DailyChallengeUI>();
 
         if (FindObjectOfType<AndroidSystemHandler>() == null)
             new GameObject("AndroidSystemHandler").AddComponent<AndroidSystemHandler>();
@@ -185,6 +201,9 @@ public class GameManager : MonoBehaviour
 
         if (kingdomStats != null)
             kingdomStats.OnGameOver += HandleGameOver;
+
+        if (DynamicMusicController.Instance != null && kingdomStats != null)
+            DynamicMusicController.Instance.BindKingdomStats(kingdomStats);
 
         if (adManager != null)
             adManager.OnRewardedAvailabilityChanged += HandleRewardedAvailabilityChanged;
@@ -238,6 +257,12 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void OnStartMenuPlayPressed()
     {
+        if (DynastyHistoryManager.Instance != null)
+            DynastyHistoryManager.Instance.CommitPendingRecord();
+
+        if (DailyChallengeManager.Instance != null)
+            DailyChallengeManager.Instance.BeginNormalRun();
+
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlayButtonClick();
 
@@ -253,12 +278,80 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Hook for the Daily Challenge button — seeded run, one attempt per UTC day.
+    /// </summary>
+    public void OnDailyChallengePressed()
+    {
+        if (DynastyHistoryManager.Instance != null)
+            DynastyHistoryManager.Instance.CommitPendingRecord();
+
+        var daily = DailyChallengeManager.Instance;
+        if (daily == null)
+            daily = new GameObject("DailyChallengeManager").AddComponent<DailyChallengeManager>();
+
+        if (daily.HasPlayedToday())
+        {
+            Debug.Log($"GameManager: Daily Challenge already used today (score={daily.GetTodayScore()}).");
+            var ui = FindObjectOfType<DailyChallengeUI>();
+            if (ui != null)
+                ui.RefreshLabel();
+            return;
+        }
+
+        if (!daily.TryBeginDailyRun())
+            return;
+
+        if (saveManager != null)
+            saveManager.DeleteSave();
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
+
+        if (UIFadeTransition.Instance != null)
+        {
+            UIFadeTransition.Instance.TransitionTo(
+                UIFadeTransition.ScreenId.Gameplay,
+                onMidpoint: StartDailyGame);
+            return;
+        }
+
+        StartDailyGame();
+    }
+
+    /// <summary>
     /// Play Again: resets stats to 50, years to 0, and draws a fresh card.
+    /// Daily Challenge returns to the Start Menu instead of allowing a second run.
     /// </summary>
     public void PlayAgain()
     {
+        if (DynastyHistoryManager.Instance != null)
+            DynastyHistoryManager.Instance.CommitPendingRecord();
+
+        bool wasDaily = DailyChallengeManager.Instance != null &&
+                        DailyChallengeManager.Instance.LastRunWasDaily;
+
         if (saveManager != null)
             saveManager.DeleteSave();
+
+        if (wasDaily)
+        {
+            if (DailyChallengeManager.Instance != null)
+                DailyChallengeManager.Instance.BeginNormalRun();
+
+            var dailyUi = FindObjectOfType<DailyChallengeUI>();
+            if (dailyUi != null)
+                dailyUi.RefreshLabel();
+
+            if (UIFadeTransition.Instance != null)
+                UIFadeTransition.Instance.TransitionTo(UIFadeTransition.ScreenId.StartMenu);
+            else if (uiManager != null)
+                uiManager.HideGameOver();
+
+            return;
+        }
+
+        if (DailyChallengeManager.Instance != null)
+            DailyChallengeManager.Instance.BeginNormalRun();
 
         if (UIFadeTransition.Instance != null)
         {
@@ -271,11 +364,28 @@ public class GameManager : MonoBehaviour
         StartNewGame();
     }
 
+    /// <summary>Daily Challenge entry — skips tutorial, uses seeded Random from TryBeginDailyRun.</summary>
+    public void StartDailyGame()
+    {
+        StartNewGame(skipTutorial: true, isDaily: true);
+    }
+
     /// <summary>
     /// Resets stats and score, reloads the deck, and shows the first card.
     /// </summary>
     public void StartNewGame()
     {
+        StartNewGame(skipTutorial: false, isDaily: false);
+    }
+
+    private void StartNewGame(bool skipTutorial, bool isDaily)
+    {
+        if (DynastyHistoryManager.Instance != null)
+            DynastyHistoryManager.Instance.CommitPendingRecord();
+
+        if (!isDaily && DailyChallengeManager.Instance != null)
+            DailyChallengeManager.Instance.BeginNormalRun();
+
         StopAllCoroutines();
         isResolvingChoice = false;
         gameOverSequenceRunning = false;
@@ -290,6 +400,9 @@ public class GameManager : MonoBehaviour
         inTutorial = false;
         tutorialStep = 0;
         statusEffects.Clear();
+
+        if (EnvironmentManager.Instance != null)
+            EnvironmentManager.Instance.ClearEnvironment();
 
         if (inventoryManager != null)
             inventoryManager.ClearInventory();
@@ -321,7 +434,7 @@ public class GameManager : MonoBehaviour
             cardSwipe.SetInputEnabled(true);
         }
 
-        if (!TutorialCards.HasCompletedTutorial)
+        if (!skipTutorial && !isDaily && !TutorialCards.HasCompletedTutorial)
         {
             BeginTutorial();
             return;
@@ -331,7 +444,8 @@ public class GameManager : MonoBehaviour
         ShowNextCard();
         hasActiveRun = currentCard != null;
 
-        if (saveManager != null)
+        // Daily runs are single-attempt — do not persist mid-run saves for resume exploits.
+        if (!isDaily && saveManager != null)
             saveManager.SaveGame();
     }
 
@@ -777,6 +891,9 @@ public class GameManager : MonoBehaviour
         if (cardVoicePlayer != null)
             cardVoicePlayer.PlayCardVoice(card);
 
+        if (EnvironmentManager.Instance != null)
+            EnvironmentManager.Instance.ApplyCardEnvironment(card);
+
         if (!inTutorial && achievementManager != null)
             achievementManager.NotifyCardSeen(card);
     }
@@ -976,6 +1093,12 @@ public class GameManager : MonoBehaviour
         if (achievementManager != null)
             achievementManager.NotifyDeath(cause);
 
+        if (DynastyHistoryManager.Instance != null)
+            DynastyHistoryManager.Instance.StagePendingDeath(YearsRuled, cause);
+
+        if (DailyChallengeManager.Instance != null && DailyChallengeManager.Instance.IsDailyRunActive)
+            DailyChallengeManager.Instance.RecordDailyScore(YearsRuled);
+
         if (analyticsManager != null)
             analyticsManager.LogPlayerDeath(YearsRuled, cause, lastCardId);
 
@@ -1033,6 +1156,9 @@ public class GameManager : MonoBehaviour
 
     private bool CanOfferSecondChance()
     {
+        if (DailyChallengeManager.Instance != null && DailyChallengeManager.Instance.IsDailyRunActive)
+            return false;
+
         if (secondChanceUsedThisRun)
             return false;
 
@@ -1046,6 +1172,9 @@ public class GameManager : MonoBehaviour
     {
         // If the player is sitting on Game Over and connectivity returns with a cached ad, reveal the button.
         if (uiManager == null || secondChanceUsedThisRun)
+            return;
+
+        if (DailyChallengeManager.Instance != null && DailyChallengeManager.Instance.IsDailyRunActive)
             return;
 
         if (kingdomStats == null || !kingdomStats.IsGameOver)
@@ -1091,6 +1220,14 @@ public class GameManager : MonoBehaviour
 
     private void OnSecondChanceClicked()
     {
+        if (DailyChallengeManager.Instance != null && DailyChallengeManager.Instance.IsDailyRunActive)
+        {
+            Debug.Log("GameManager: Second Chance disabled in Daily Challenge Mode.");
+            if (uiManager != null)
+                uiManager.SetSecondChanceAvailable(false);
+            return;
+        }
+
         if (secondChanceUsedThisRun || kingdomStats == null || !kingdomStats.IsGameOver)
             return;
 
@@ -1147,6 +1284,9 @@ public class GameManager : MonoBehaviour
         pendingDeathCause = DeathCause.None;
         isResolvingChoice = false;
         gameOverSequenceRunning = false;
+
+        if (DynastyHistoryManager.Instance != null)
+            DynastyHistoryManager.Instance.CancelPendingRecord();
 
         // YearsRuled is intentionally unchanged — resume from the year they died.
         RefreshStatHud(immediate: true);

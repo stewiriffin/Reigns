@@ -22,6 +22,9 @@ public class KingdomStats : MonoBehaviour
     /// </summary>
     public event Action<DeathCause> OnGameOver;
 
+    /// <summary>Fired after stats change (deltas, load, reset, second chance).</summary>
+    public event Action OnStatsChanged;
+
     /// <summary>
     /// Optional hook (InventoryManager). Return true if the death was prevented (stat already restored).
     /// </summary>
@@ -53,6 +56,7 @@ public class KingdomStats : MonoBehaviour
         wealth = DefaultStat;
         IsGameOver = false;
         LastDeathCause = DeathCause.None;
+        OnStatsChanged?.Invoke();
     }
 
     /// <summary>
@@ -66,6 +70,7 @@ public class KingdomStats : MonoBehaviour
         wealth = ClampStat(wealthValue);
         IsGameOver = false;
         LastDeathCause = DeathCause.None;
+        OnStatsChanged?.Invoke();
     }
 
     /// <summary>
@@ -82,8 +87,12 @@ public class KingdomStats : MonoBehaviour
         army = ClampStat(army + armyDelta);
         wealth = ClampStat(wealth + wealthDelta);
 
+        OnStatsChanged?.Invoke();
         CheckGameOver();
     }
+
+    /// <summary>Lowest of the four kingdom stats.</summary>
+    public int LowestStat => Mathf.Min(Mathf.Min(religion, people), Mathf.Min(army, wealth));
 
     /// <summary>
     /// Applies a single-stat delta (used by status effect ticks).
@@ -172,7 +181,11 @@ public class KingdomStats : MonoBehaviour
             case DeathCause.WealthFull:
                 wealth = DefaultStat;
                 break;
+            default:
+                return;
         }
+
+        OnStatsChanged?.Invoke();
     }
 
     private void TriggerGameOver(DeathCause cause)
@@ -307,6 +320,7 @@ public class KingdomStats : MonoBehaviour
 
         IsGameOver = false;
         LastDeathCause = DeathCause.None;
+        OnStatsChanged?.Invoke();
         return true;
     }
 }
