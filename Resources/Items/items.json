@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "id": "royal_banner",
+      "displayName": "Royal Banner",
+      "iconResourcePath": "Items/Icons/royal_banner",
+      "PreventsDeathByReligion": false,
+      "PreventsDeathByPeople": false,
+      "PreventsDeathByArmy": true,
+      "PreventsDeathByWealth": false
+    },
+    {
+      "id": "holy_relic",
+      "displayName": "Holy Relic",
+      "iconResourcePath": "Items/Icons/holy_relic",
+      "PreventsDeathByReligion": true,
+      "PreventsDeathByPeople": false,
+      "PreventsDeathByArmy": false,
+      "PreventsDeathByWealth": false
+    },
+    {
+      "id": "grain_stores",
+      "displayName": "Grain Stores",
+      "iconResourcePath": "Items/Icons/grain_stores",
+      "PreventsDeathByReligion": false,
+      "PreventsDeathByPeople": true,
+      "PreventsDeathByArmy": false,
+      "PreventsDeathByWealth": false
+    },
+    {
+      "id": "sealed_purse",
+      "displayName": "Sealed Purse",
+      "iconResourcePath": "Items/Icons/sealed_purse",
+      "PreventsDeathByReligion": false,
+      "PreventsDeathByPeople": false,
+      "PreventsDeathByArmy": false,
+      "PreventsDeathByWealth": true
+    }
+  ]
+}

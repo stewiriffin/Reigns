@@ -18,6 +18,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] private AdManager adManager;
     [SerializeField] private KingdomAtmosphere atmosphere;
     [SerializeField] private CardVoicePlayer cardVoicePlayer;
+    [SerializeField] private InventoryManager inventoryManager;
+    [SerializeField] private SaveManager saveManager;
 
     [Header("Deck")]
     [SerializeField] private string cardsResourcePath = "Cards/event_cards";
@@ -36,6 +38,7 @@ public class GameManager : MonoBehaviour
     private bool skipStatusTickOnce;
     private bool secondChanceUsedThisDeath;
     private bool gameOverSequenceRunning;
+    private bool hasActiveRun;
     private string lastCardId;
     private string forcedNextCardId;
     private DeathCause pendingDeathCause = DeathCause.None;
@@ -45,6 +48,13 @@ public class GameManager : MonoBehaviour
 
     /// <summary>Best Years Ruled across runs, loaded from PlayerPrefs.</summary>
     public int LongestReign { get; private set; }
+
+    /// <summary>True when an in-progress run should be auto-saved.</summary>
+    public bool CanAutoSave =>
+        hasActiveRun &&
+        !kingdomStats.IsGameOver &&
+        !gameOverSequenceRunning &&
+        currentCard != null;
 
     private void Awake()
     {
@@ -65,6 +75,12 @@ public class GameManager : MonoBehaviour
 
         if (cardVoicePlayer == null)
             cardVoicePlayer = FindObjectOfType<CardVoicePlayer>();
+
+        if (inventoryManager == null)
+            inventoryManager = FindObjectOfType<InventoryManager>();
+
+        if (saveManager == null)
+            saveManager = SaveManager.Instance != null ? SaveManager.Instance : FindObjectOfType<SaveManager>();
 
         LongestReign = PlayerPrefs.GetInt(LongestReignPrefsKey, 0);
         deathMessages = DeathMessageLoader.Load(deathMessagesResourcePath);
@@ -105,6 +121,9 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
+        if (TryResumeFromSave())
+            return;
+
         StartNewGame();
     }
 
@@ -113,6 +132,9 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void PlayAgain()
     {
+        if (saveManager != null)
+            saveManager.DeleteSave();
+
         StartNewGame();
     }
 
@@ -131,7 +153,11 @@ public class GameManager : MonoBehaviour
         pendingDeathCause = DeathCause.None;
         YearsRuled = 0;
         skipStatusTickOnce = true;
+        hasActiveRun = false;
         statusEffects.Clear();
+
+        if (inventoryManager != null)
+            inventoryManager.ClearInventory();
 
         if (uiManager != null)
         {
@@ -156,6 +182,122 @@ public class GameManager : MonoBehaviour
         }
 
         ShowNextCard();
+        hasActiveRun = currentCard != null;
+
+        if (saveManager != null)
+            saveManager.SaveGame();
+    }
+
+    /// <summary>
+    /// Builds a JSON-serializable snapshot of the current run.
+    /// </summary>
+    public GameSaveData CaptureSaveData()
+    {
+        if (currentCard == null)
+            return null;
+
+        string[] itemIds = null;
+        if (inventoryManager != null && inventoryManager.HeldItems.Count > 0)
+        {
+            itemIds = new string[inventoryManager.HeldItems.Count];
+            for (int i = 0; i < inventoryManager.HeldItems.Count; i++)
+                itemIds[i] = inventoryManager.HeldItems[i]?.id;
+        }
+
+        return new GameSaveData
+        {
+            yearsRuled = YearsRuled,
+            religion = kingdomStats.Religion,
+            people = kingdomStats.People,
+            army = kingdomStats.Army,
+            wealth = kingdomStats.Wealth,
+            statusEffects = statusEffects.ToSaveArray(),
+            inventoryItemIds = itemIds ?? new string[0],
+            currentCardId = currentCard.id
+        };
+    }
+
+    private bool TryResumeFromSave()
+    {
+        if (saveManager == null)
+            saveManager = FindObjectOfType<SaveManager>();
+
+        if (saveManager == null)
+            return false;
+
+        GameSaveData data = saveManager.LoadGame();
+        if (data == null)
+            return false;
+
+        if (!ApplySaveData(data))
+        {
+            saveManager.DeleteSave();
+            return false;
+        }
+
+        Debug.Log($"GameManager: Resumed run at year {YearsRuled}, card '{data.currentCardId}'.");
+        return true;
+    }
+
+    /// <summary>
+    /// Restores a saved run: stats, year, effects, inventory, and the card that was on screen.
+    /// </summary>
+    private bool ApplySaveData(GameSaveData data)
+    {
+        if (data == null)
+            return false;
+
+        StopAllCoroutines();
+        isResolvingChoice = false;
+        gameOverSequenceRunning = false;
+        secondChanceUsedThisDeath = false;
+        forcedNextCardId = null;
+        pendingDeathCause = DeathCause.None;
+        skipStatusTickOnce = true;
+
+        if (uiManager != null)
+        {
+            uiManager.HideGameOver();
+            uiManager.ClearStatusEffectIcons();
+        }
+
+        LoadDeck();
+        RefillDrawPile();
+
+        Card card = CardLoader.FindById(cardCatalog, data.currentCardId);
+        if (card == null)
+        {
+            Debug.LogWarning($"GameManager: Saved card '{data.currentCardId}' missing from catalog.");
+            return false;
+        }
+
+        // Avoid drawing the restored card immediately again from the random pile.
+        RemoveFromDrawPileById(card.id);
+
+        YearsRuled = Mathf.Max(0, data.yearsRuled);
+        kingdomStats.LoadState(data.religion, data.people, data.army, data.wealth);
+        statusEffects.LoadFromSave(data.statusEffects);
+
+        if (inventoryManager != null)
+            inventoryManager.RestoreFromSave(data.inventoryItemIds);
+
+        RefreshStatHud(immediate: true);
+        RefreshScoreHud();
+        RefreshStatusEffectUi();
+
+        if (atmosphere != null)
+            atmosphere.RefreshImmediate();
+
+        DisplayCard(card);
+
+        if (cardSwipe != null)
+        {
+            cardSwipe.PrepareForNextCard();
+            cardSwipe.SetInputEnabled(true);
+        }
+
+        hasActiveRun = true;
+        return true;
     }
 
     /// <summary>
@@ -223,6 +365,8 @@ public class GameManager : MonoBehaviour
 
         if (uiManager != null)
             uiManager.ClearSwipeFeedback();
+
+        hasActiveRun = currentCard != null;
     }
 
     /// <summary>
@@ -375,6 +519,14 @@ public class GameManager : MonoBehaviour
             ? currentCard.NextCardID_Left
             : currentCard.NextCardID_Right;
 
+        string grantItemId = isLeft
+            ? currentCard.leftChoiceGrantItem
+            : currentCard.rightChoiceGrantItem;
+
+        // Grant before applying mods so a newly received charm can save this same choice.
+        if (inventoryManager != null)
+            inventoryManager.GrantItem(grantItemId);
+
         modifiers?.Apply(kingdomStats);
         statusEffects.AddRange(grantedEffects);
         TryGrantMetaFlag(unlockFlag);
@@ -435,9 +587,13 @@ public class GameManager : MonoBehaviour
     private IEnumerator GameOverSequence(DeathCause cause)
     {
         gameOverSequenceRunning = true;
+        hasActiveRun = false;
         isResolvingChoice = false;
         secondChanceUsedThisDeath = false;
         pendingDeathCause = cause;
+
+        if (saveManager != null)
+            saveManager.DeleteSave();
 
         TryUpdateHighScore();
 
@@ -530,7 +686,11 @@ public class GameManager : MonoBehaviour
         Debug.Log($"GameManager: Second Chance — restored {failed} to 50 at year {YearsRuled}.");
 
         skipStatusTickOnce = true;
+        hasActiveRun = true;
         ShowNextCard();
+
+        if (saveManager != null)
+            saveManager.SaveGame();
     }
 
     private void TryUpdateHighScore()

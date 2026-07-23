@@ -52,6 +52,7 @@
         }
       ],
       "leftChoiceUnlockFlag": "",
+      "leftChoiceGrantItem": "royal_banner",
       "rightChoiceText": "Pay them tribute",
       "rightChoiceModifiers": {
         "religion": -5,
@@ -97,7 +98,10 @@
         "wealth": 10
       },
       "rightChoiceStatusEffects": [],
-      "rightChoiceUnlockFlag": ""
+      "rightChoiceUnlockFlag": "",
+      "rightChoiceGrantItem": "holy_relic",
+      "NextCardID_Left": "",
+      "NextCardID_Right": ""
     },
     {
       "id": "traveling_hunter",

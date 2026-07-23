@@ -16,6 +16,36 @@ public class StatusEffectTracker
         activeEffects.Clear();
     }
 
+    /// <summary>
+    /// Snapshot of active effects for save serialization.
+    /// </summary>
+    public StatusEffect[] ToSaveArray()
+    {
+        var snapshot = new StatusEffect[activeEffects.Count];
+        for (int i = 0; i < activeEffects.Count; i++)
+            snapshot[i] = activeEffects[i].Clone();
+        return snapshot;
+    }
+
+    /// <summary>
+    /// Replaces all active effects (used when loading a save).
+    /// </summary>
+    public void LoadFromSave(StatusEffect[] effects)
+    {
+        Clear();
+        if (effects == null || effects.Length == 0)
+            return;
+
+        // Bypass IsValid briefly so mid-duration effects with remaining turns restore correctly.
+        foreach (StatusEffect effect in effects)
+        {
+            if (effect == null || effect.duration <= 0 || !effect.TryGetTargetStat(out _))
+                continue;
+
+            activeEffects.Add(effect.Clone());
+        }
+    }
+
     public void Add(StatusEffect effect)
     {
         if (effect == null || !effect.IsValid)

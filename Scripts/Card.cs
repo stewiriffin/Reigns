@@ -65,12 +65,16 @@ public class Card
     public StatusEffect[] leftChoiceStatusEffects;
     /// <summary>Meta flag granted when the player picks the left choice (persists across runs).</summary>
     public string leftChoiceUnlockFlag;
+    /// <summary>Item ID granted when the player picks the left choice.</summary>
+    public string leftChoiceGrantItem;
 
     public string rightChoiceText;
     public StatModifiers rightChoiceModifiers;
     public StatusEffect[] rightChoiceStatusEffects;
     /// <summary>Meta flag granted when the player picks the right choice (persists across runs).</summary>
     public string rightChoiceUnlockFlag;
+    /// <summary>Item ID granted when the player picks the right choice.</summary>
+    public string rightChoiceGrantItem;
 
     /// <summary>
     /// Optional. If set, a left swipe queues this card ID as the next draw (skips the random pool).

@@ -22,6 +22,11 @@ public class KingdomStats : MonoBehaviour
     /// </summary>
     public event Action<DeathCause> OnGameOver;
 
+    /// <summary>
+    /// Optional hook (InventoryManager). Return true if the death was prevented (stat already restored).
+    /// </summary>
+    public Func<DeathCause, bool> TryPreventDeath;
+
     public int Religion => religion;
     public int People => people;
     public int Army => army;
@@ -46,6 +51,19 @@ public class KingdomStats : MonoBehaviour
         people = DefaultStat;
         army = DefaultStat;
         wealth = DefaultStat;
+        IsGameOver = false;
+        LastDeathCause = DeathCause.None;
+    }
+
+    /// <summary>
+    /// Restores exact stat values from a save without firing game-over checks.
+    /// </summary>
+    public void LoadState(int religionValue, int peopleValue, int armyValue, int wealthValue)
+    {
+        religion = ClampStat(religionValue);
+        people = ClampStat(peopleValue);
+        army = ClampStat(armyValue);
+        wealth = ClampStat(wealthValue);
         IsGameOver = false;
         LastDeathCause = DeathCause.None;
     }
@@ -116,9 +134,45 @@ public class KingdomStats : MonoBehaviour
 
     private void CheckGameOver()
     {
-        DeathCause cause = EvaluateDeathCause();
-        if (cause != DeathCause.None)
+        // Multiple extremes can exist after one ModifyStats; allow item saves in sequence.
+        for (int safety = 0; safety < 8; safety++)
+        {
+            DeathCause cause = EvaluateDeathCause();
+            if (cause == DeathCause.None)
+                return;
+
+            if (TryPreventDeath != null && TryPreventDeath(cause))
+                continue;
+
             TriggerGameOver(cause);
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Restores the stat associated with a death cause to the default (50). Does not clear game over.
+    /// </summary>
+    public void RestoreStatForDeathCause(DeathCause cause)
+    {
+        switch (cause)
+        {
+            case DeathCause.ReligionEmpty:
+            case DeathCause.ReligionFull:
+                religion = DefaultStat;
+                break;
+            case DeathCause.PeopleEmpty:
+            case DeathCause.PeopleFull:
+                people = DefaultStat;
+                break;
+            case DeathCause.ArmyEmpty:
+            case DeathCause.ArmyFull:
+                army = DefaultStat;
+                break;
+            case DeathCause.WealthEmpty:
+            case DeathCause.WealthFull:
+                wealth = DefaultStat;
+                break;
+        }
     }
 
     private void TriggerGameOver(DeathCause cause)
