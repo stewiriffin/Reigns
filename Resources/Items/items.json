@@ -3,7 +3,11 @@
     {
       "id": "royal_banner",
       "displayName": "Royal Banner",
+      "description": "Once: prevents an Army death.",
       "iconResourcePath": "Items/Icons/royal_banner",
+      "isUsable": false,
+      "consumeOnUse": false,
+      "useEffect": { "religion": 0, "people": 0, "army": 0, "wealth": 0 },
       "PreventsDeathByReligion": false,
       "PreventsDeathByPeople": false,
       "PreventsDeathByArmy": true,
@@ -12,7 +16,11 @@
     {
       "id": "holy_relic",
       "displayName": "Holy Relic",
+      "description": "Once: prevents a Religion death.",
       "iconResourcePath": "Items/Icons/holy_relic",
+      "isUsable": false,
+      "consumeOnUse": false,
+      "useEffect": { "religion": 0, "people": 0, "army": 0, "wealth": 0 },
       "PreventsDeathByReligion": true,
       "PreventsDeathByPeople": false,
       "PreventsDeathByArmy": false,
@@ -21,7 +29,11 @@
     {
       "id": "grain_stores",
       "displayName": "Grain Stores",
+      "description": "Once: prevents a People death.",
       "iconResourcePath": "Items/Icons/grain_stores",
+      "isUsable": false,
+      "consumeOnUse": false,
+      "useEffect": { "religion": 0, "people": 0, "army": 0, "wealth": 0 },
       "PreventsDeathByReligion": false,
       "PreventsDeathByPeople": true,
       "PreventsDeathByArmy": false,
@@ -30,11 +42,54 @@
     {
       "id": "sealed_purse",
       "displayName": "Sealed Purse",
+      "description": "Once: prevents a Wealth death.",
       "iconResourcePath": "Items/Icons/sealed_purse",
+      "isUsable": false,
+      "consumeOnUse": false,
+      "useEffect": { "religion": 0, "people": 0, "army": 0, "wealth": 0 },
       "PreventsDeathByReligion": false,
       "PreventsDeathByPeople": false,
       "PreventsDeathByArmy": false,
       "PreventsDeathByWealth": true
+    },
+    {
+      "id": "potion_of_health",
+      "displayName": "Potion of Health",
+      "description": "Restores People by +20 instantly.",
+      "iconResourcePath": "Items/Icons/grain_stores",
+      "isUsable": true,
+      "consumeOnUse": true,
+      "useEffect": { "religion": 0, "people": 20, "army": 0, "wealth": 0 },
+      "PreventsDeathByReligion": false,
+      "PreventsDeathByPeople": false,
+      "PreventsDeathByArmy": false,
+      "PreventsDeathByWealth": false
+    },
+    {
+      "id": "bribery_coin",
+      "displayName": "Bribery Coin",
+      "description": "Buy loyalty: People +15, Wealth -5.",
+      "iconResourcePath": "Items/Icons/sealed_purse",
+      "isUsable": true,
+      "consumeOnUse": true,
+      "useEffect": { "religion": 0, "people": 15, "army": 0, "wealth": -5 },
+      "PreventsDeathByReligion": false,
+      "PreventsDeathByPeople": false,
+      "PreventsDeathByArmy": false,
+      "PreventsDeathByWealth": false
+    },
+    {
+      "id": "royal_seal",
+      "displayName": "Royal Seal",
+      "description": "Stamp a decree: Religion +10, Army +10.",
+      "iconResourcePath": "Items/Icons/royal_banner",
+      "isUsable": true,
+      "consumeOnUse": true,
+      "useEffect": { "religion": 10, "people": 0, "army": 10, "wealth": 0 },
+      "PreventsDeathByReligion": false,
+      "PreventsDeathByPeople": false,
+      "PreventsDeathByArmy": false,
+      "PreventsDeathByWealth": false
     }
   ]
 }

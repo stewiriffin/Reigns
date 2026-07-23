@@ -39,7 +39,11 @@
       "rightChoiceFactionDeltas": [
         { "factionId": "witches", "delta": -10 },
         { "factionId": "merchant_guild", "delta": -8 }
-      ]
+      ],
+      "leftChoiceStoryArcId": "cult_overthrow",
+      "leftChoiceStoryArcDelta": 1,
+      "rightChoiceStoryArcId": "eternal_crusade",
+      "rightChoiceStoryArcDelta": 1
     },
     {
       "id": "border_raiders",
@@ -131,7 +135,11 @@
       "rightChoiceFactionDeltas": [
         { "factionId": "merchant_guild", "delta": 16 },
         { "factionId": "witches", "delta": -6 }
-      ]
+      ],
+      "leftChoiceStoryArcId": "empire_unifier",
+      "leftChoiceStoryArcDelta": 1,
+      "rightChoiceStoryArcId": "merchant_crown",
+      "rightChoiceStoryArcDelta": 1
     },
     {
       "id": "traveling_hunter",
@@ -160,7 +168,9 @@
       "rightChoiceStatusEffects": [],
       "rightChoiceUnlockFlag": "",
       "NextCardID_Right": "",
-      "weather": "Snow"
+      "weather": "Snow",
+      "leftChoiceStoryArcId": "dragon_slayer",
+      "leftChoiceStoryArcDelta": 1
     },
     {
       "id": "dragon_expedition_report",
@@ -189,7 +199,11 @@
       "rightChoiceStatusEffects": [],
       "rightChoiceUnlockFlag": "",
       "NextCardID_Right": "",
-      "weather": "Snow"
+      "weather": "Snow",
+      "leftChoiceStoryArcId": "dragon_slayer",
+      "leftChoiceStoryArcDelta": 1,
+      "rightChoiceStoryArcId": "dragon_slayer",
+      "rightChoiceStoryArcDelta": 1
     },
     {
       "id": "peasant_uprising",
@@ -263,7 +277,12 @@
       },
       "rightChoiceStatusEffects": [],
       "rightChoiceUnlockFlag": "",
-      "weather": "Embers"
+      "weather": "Embers",
+      "leftChoiceStoryArcId": "eternal_crusade",
+      "leftChoiceStoryArcDelta": 1,
+      "leftChoiceStoryFlag": "Crusade_Initiated",
+      "rightChoiceStoryArcId": "cult_overthrow",
+      "rightChoiceStoryArcDelta": 1
     },
     {
       "id": "foreign_empire",
@@ -304,7 +323,230 @@
       "rightChoiceFactionDeltas": [
         { "factionId": "foreign_empire", "delta": -20 },
         { "factionId": "witches", "delta": 8 }
+      ],
+      "leftChoiceStoryArcId": "empire_unifier",
+      "leftChoiceStoryArcDelta": 2,
+      "rightChoiceStoryArcId": "cult_overthrow",
+      "rightChoiceStoryArcDelta": 1
+    },
+    {
+      "id": "traveling_alchemist",
+      "scenarioText": "A traveling alchemist offers a Potion of Health for a handful of coin — or a sealed Bribery Coin if you prefer darker deals.",
+      "prerequisiteFlag": "",
+      "era": 1,
+      "portraitResourcePath": "Characters/Hunter/portrait",
+      "voiceResourcePath": "Characters/Hunter/voice",
+      "leftChoiceText": "Buy the potion",
+      "leftChoiceModifiers": {
+        "religion": 0,
+        "people": 0,
+        "army": 0,
+        "wealth": 0
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "leftChoiceGrantItem": "potion_of_health",
+      "leftChoiceItemCost": {
+        "religion": 0,
+        "people": 0,
+        "army": 0,
+        "wealth": -15
+      },
+      "rightChoiceText": "Take the Bribery Coin",
+      "rightChoiceModifiers": {
+        "religion": -5,
+        "people": 0,
+        "army": 0,
+        "wealth": -10
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": "",
+      "rightChoiceGrantItem": "bribery_coin",
+      "weather": "None",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "merchant_guild", "delta": 6 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "merchant_guild", "delta": 4 },
+        { "factionId": "witches", "delta": 4 }
+      ],
+      "leftChoiceStoryArcId": "merchant_crown",
+      "leftChoiceStoryArcDelta": 1,
+      "rightChoiceStoryArcId": "merchant_crown",
+      "rightChoiceStoryArcDelta": 1
+    },
+    {
+      "id": "relic_trader",
+      "scenarioText": "A hooded trader eyes your Bribery Coin. \"Trade it for the Royal Seal,\" they whisper, \"and pay a tithe of gold.\"",
+      "prerequisiteFlag": "",
+      "era": 2,
+      "portraitResourcePath": "Characters/Diplomat/portrait",
+      "voiceResourcePath": "Characters/Diplomat/voice",
+      "leftChoiceText": "Trade coin for the Seal",
+      "leftChoiceModifiers": {
+        "religion": 5,
+        "people": 0,
+        "army": 0,
+        "wealth": 0
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "leftChoiceConsumeItem": "bribery_coin",
+      "leftChoiceGrantItem": "royal_seal",
+      "leftChoiceItemCost": {
+        "religion": 0,
+        "people": 0,
+        "army": 0,
+        "wealth": -10
+      },
+      "rightChoiceText": "Refuse and keep the coin",
+      "rightChoiceModifiers": {
+        "religion": 0,
+        "people": 5,
+        "army": 0,
+        "wealth": 0
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": "",
+      "weather": "Dust",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": 5 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "merchant_guild", "delta": -4 }
+      ],
+      "leftChoiceStoryArcId": "merchant_crown",
+      "leftChoiceStoryArcDelta": 1,
+      "rightChoiceStoryArcId": "merchant_crown",
+      "rightChoiceStoryArcDelta": 1
+    },
+    {
+      "id": "blizzard_famine",
+      "scenarioText": "A blizzard buries the granaries. The people starve while the roads vanish under ice.",
+      "prerequisiteFlag": "",
+      "era": 0,
+      "requiredSeason": "Winter",
+      "portraitResourcePath": "Characters/Survivor/portrait",
+      "voiceResourcePath": "Characters/Survivor/voice",
+      "leftChoiceText": "Ration the last stores",
+      "leftChoiceModifiers": {
+        "religion": 5,
+        "people": -20,
+        "army": -5,
+        "wealth": -10
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "Burn furniture for heat",
+      "rightChoiceModifiers": {
+        "religion": -5,
+        "people": -10,
+        "army": 0,
+        "wealth": -15
+      },
+      "rightChoiceStatusEffects": [
+        {
+          "targetStat": "People",
+          "valuePerTurn": -3,
+          "duration": 2
+        }
+      ],
+      "rightChoiceUnlockFlag": "",
+      "weather": "Snow",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "witches", "delta": 6 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "merchant_guild", "delta": -8 }
       ]
+    },
+    {
+      "id": "sword_duel",
+      "scenarioText": "A rival noble draws steel in the courtyard. The court watches — this will not be settled with words.",
+      "prerequisiteFlag": "",
+      "era": 2,
+      "miniGame": "SwordDuel",
+      "portraitResourcePath": "Characters/General/portrait",
+      "voiceResourcePath": "Characters/General/voice",
+      "leftChoiceText": "",
+      "leftChoiceModifiers": {
+        "religion": 0,
+        "people": 0,
+        "army": 0,
+        "wealth": 0
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "",
+      "rightChoiceModifiers": {
+        "religion": 0,
+        "people": 0,
+        "army": 0,
+        "wealth": 0
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": "",
+      "weather": "Dust"
+    },
+    {
+      "id": "duel_victory",
+      "scenarioText": "Your blade finds its mark. The challenger yields, and the court erupts — your legend grows sharper.",
+      "prerequisiteFlag": "",
+      "era": 99,
+      "portraitResourcePath": "Characters/General/portrait",
+      "voiceResourcePath": "Characters/General/voice",
+      "leftChoiceText": "Spare them",
+      "leftChoiceModifiers": {
+        "religion": 10,
+        "people": 10,
+        "army": 5,
+        "wealth": 0
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "Finish it",
+      "rightChoiceModifiers": {
+        "religion": -10,
+        "people": 5,
+        "army": 15,
+        "wealth": 5
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": "",
+      "weather": "None",
+      "leftChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": 6 }
+      ],
+      "rightChoiceFactionDeltas": [
+        { "factionId": "foreign_empire", "delta": -4 }
+      ]
+    },
+    {
+      "id": "duel_death",
+      "scenarioText": "Steel bites deep. Blood on the flagstones — the duel is lost, and so may be your reign.",
+      "prerequisiteFlag": "",
+      "era": 99,
+      "portraitResourcePath": "Characters/General/portrait",
+      "voiceResourcePath": "Characters/General/voice",
+      "leftChoiceText": "Call for a surgeon",
+      "leftChoiceModifiers": {
+        "religion": 0,
+        "people": -10,
+        "army": -55,
+        "wealth": -15
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "Stand and bleed",
+      "rightChoiceModifiers": {
+        "religion": 5,
+        "people": -5,
+        "army": -70,
+        "wealth": 0
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": "",
+      "weather": "Embers"
     }
   ],
   "unlockablePools": [
@@ -342,7 +584,11 @@
             }
           ],
           "rightChoiceUnlockFlag": "Slayed_Dragon",
-          "weather": "Embers"
+          "weather": "Embers",
+          "leftChoiceStoryArcId": "eternal_crusade",
+          "leftChoiceStoryArcDelta": 1,
+          "rightChoiceStoryArcId": "dragon_slayer",
+          "rightChoiceStoryArcDelta": 1
         }
       ]
     },
@@ -374,7 +620,11 @@
           },
           "rightChoiceStatusEffects": [],
           "rightChoiceUnlockFlag": "",
-          "weather": "Embers"
+          "weather": "Embers",
+          "leftChoiceStoryArcId": "dragon_slayer",
+          "leftChoiceStoryArcDelta": 1,
+          "rightChoiceStoryArcId": "eternal_crusade",
+          "rightChoiceStoryArcDelta": 1
         }
       ]
     },
@@ -412,7 +662,11 @@
           ],
           "rightChoiceFactionDeltas": [
             { "factionId": "merchant_guild", "delta": -12 }
-          ]
+          ],
+          "leftChoiceStoryArcId": "merchant_crown",
+          "leftChoiceStoryArcDelta": 1,
+          "rightChoiceStoryArcId": "merchant_crown",
+          "rightChoiceStoryArcDelta": 1
         },
         {
           "id": "faction_merchant_rebellion",
@@ -478,7 +732,11 @@
           ],
           "rightChoiceFactionDeltas": [
             { "factionId": "witches", "delta": -20 }
-          ]
+          ],
+          "leftChoiceStoryArcId": "cult_overthrow",
+          "leftChoiceStoryArcDelta": 1,
+          "rightChoiceStoryArcId": "eternal_crusade",
+          "rightChoiceStoryArcDelta": 1
         },
         {
           "id": "faction_witches_curse",
@@ -544,7 +802,11 @@
           ],
           "rightChoiceFactionDeltas": [
             { "factionId": "foreign_empire", "delta": -10 }
-          ]
+          ],
+          "leftChoiceStoryArcId": "empire_unifier",
+          "leftChoiceStoryArcDelta": 1,
+          "rightChoiceStoryArcId": "empire_unifier",
+          "rightChoiceStoryArcDelta": 1
         },
         {
           "id": "faction_empire_ultimatum",

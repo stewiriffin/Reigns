@@ -18,6 +18,7 @@ public class GameSaveData
     public string currentCardId;
     public bool secondChanceUsedThisRun;
     public FactionLoyaltySave[] factionLoyalties;
+    public StoryArcProgressSave[] storyArcs;
 }
 
 /// <summary>

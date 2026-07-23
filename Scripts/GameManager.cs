@@ -53,6 +53,8 @@ public class GameManager : MonoBehaviour
     private bool gameOverSequenceRunning;
     private bool hasActiveRun;
     private bool inTutorial;
+    private bool miniGameActive;
+    private bool legendaryEndingQueued;
     private int tutorialStep;
     private string lastCardId;
     private string forcedNextCardId;
@@ -81,6 +83,29 @@ public class GameManager : MonoBehaviour
         currentCard != null &&
         (DailyChallengeManager.Instance == null || !DailyChallengeManager.Instance.IsDailyRunActive);
 
+    /// <summary>True when inventory relics may be tapped on the action bar.</summary>
+    public bool CanUseInventoryItems =>
+        hasActiveRun &&
+        !inTutorial &&
+        !isResolvingChoice &&
+        !miniGameActive &&
+        !gameOverSequenceRunning &&
+        currentCard != null &&
+        kingdomStats != null &&
+        !kingdomStats.IsGameOver &&
+        (cardSwipe == null || !cardSwipe.IsDiscarding);
+
+    /// <summary>True while a card mini-game overlay owns input.</summary>
+    public bool IsMiniGameActive => miniGameActive;
+
+    /// <summary>Refresh stat sliders after an inventory item is used mid-turn.</summary>
+    public void RefreshHudAfterItemUse()
+    {
+        RefreshStatHud(immediate: false);
+        if (atmosphere != null)
+            atmosphere.RefreshImmediate();
+    }
+
     private void Awake()
     {
         if (kingdomStats == null)
@@ -91,6 +116,14 @@ public class GameManager : MonoBehaviour
 
         if (uiManager == null)
             uiManager = FindObjectOfType<UIManager>();
+
+        if (inventoryManager == null)
+            inventoryManager = InventoryManager.Instance != null
+                ? InventoryManager.Instance
+                : FindObjectOfType<InventoryManager>();
+
+        if (inventoryManager == null)
+            inventoryManager = new GameObject("InventoryManager").AddComponent<InventoryManager>();
 
         if (adManager == null)
             adManager = AdManager.Instance != null ? AdManager.Instance : FindObjectOfType<AdManager>();
@@ -103,9 +136,6 @@ public class GameManager : MonoBehaviour
 
         if (cardVoicePlayer == null)
             cardVoicePlayer = FindObjectOfType<CardVoicePlayer>();
-
-        if (inventoryManager == null)
-            inventoryManager = FindObjectOfType<InventoryManager>();
 
         if (saveManager == null)
             saveManager = SaveManager.Instance != null ? SaveManager.Instance : FindObjectOfType<SaveManager>();
@@ -180,6 +210,18 @@ public class GameManager : MonoBehaviour
 
         if (FindObjectOfType<FactionLedgerUI>() == null)
             new GameObject("FactionLedgerUI").AddComponent<FactionLedgerUI>();
+
+        if (SeasonManager.Instance == null && FindObjectOfType<SeasonManager>() == null)
+            new GameObject("SeasonManager").AddComponent<SeasonManager>();
+
+        if (DuelController.Instance == null && FindObjectOfType<DuelController>() == null)
+            new GameObject("DuelController").AddComponent<DuelController>();
+
+        if (StoryArcManager.Instance == null && FindObjectOfType<StoryArcManager>() == null)
+            new GameObject("StoryArcManager").AddComponent<StoryArcManager>();
+
+        if (FindObjectOfType<LegendaryEndingsUI>() == null)
+            new GameObject("LegendaryEndingsUI").AddComponent<LegendaryEndingsUI>();
 
         if (FindObjectOfType<AndroidSystemHandler>() == null)
             new GameObject("AndroidSystemHandler").AddComponent<AndroidSystemHandler>();
@@ -402,6 +444,8 @@ public class GameManager : MonoBehaviour
         isResolvingChoice = false;
         gameOverSequenceRunning = false;
         secondChanceUsedThisRun = false;
+        miniGameActive = false;
+        legendaryEndingQueued = false;
         lastCardId = null;
         currentCard = null;
         forcedNextCardId = null;
@@ -412,6 +456,12 @@ public class GameManager : MonoBehaviour
         inTutorial = false;
         tutorialStep = 0;
         statusEffects.Clear();
+
+        if (SeasonManager.Instance != null)
+            SeasonManager.Instance.ResetSeason();
+
+        if (StoryArcManager.Instance != null)
+            StoryArcManager.Instance.ResetRunProgress();
 
         if (FactionRelationshipManager.Instance != null)
             FactionRelationshipManager.Instance.ResetRelationships();
@@ -568,6 +618,9 @@ public class GameManager : MonoBehaviour
             secondChanceUsedThisRun = secondChanceUsedThisRun,
             factionLoyalties = FactionRelationshipManager.Instance != null
                 ? FactionRelationshipManager.Instance.CaptureSave()
+                : null,
+            storyArcs = StoryArcManager.Instance != null
+                ? StoryArcManager.Instance.CaptureSave()
                 : null
         };
     }
@@ -619,6 +672,9 @@ public class GameManager : MonoBehaviour
         LoadDeck();
 
         YearsRuled = Mathf.Max(0, data.yearsRuled);
+        if (SeasonManager.Instance != null)
+            SeasonManager.Instance.SyncFromYearsRuled(YearsRuled);
+
         RefillDrawPile();
 
         Card card = CardLoader.FindById(cardCatalog, data.currentCardId);
@@ -637,6 +693,9 @@ public class GameManager : MonoBehaviour
         if (FactionRelationshipManager.Instance != null)
             FactionRelationshipManager.Instance.LoadSave(data.factionLoyalties);
 
+        if (StoryArcManager.Instance != null)
+            StoryArcManager.Instance.LoadSave(data.storyArcs);
+
         if (inventoryManager != null)
             inventoryManager.RestoreFromSave(data.inventoryItemIds);
 
@@ -651,6 +710,12 @@ public class GameManager : MonoBehaviour
             adManager.SetBannerAllowed(true);
 
         DisplayCard(card);
+
+        if (TryBeginMiniGame(card))
+        {
+            hasActiveRun = true;
+            return true;
+        }
 
         if (cardSwipe != null)
         {
@@ -725,6 +790,8 @@ public class GameManager : MonoBehaviour
                     continue;
                 if (!card.IsAvailableInEra(CurrentEra))
                     continue;
+                if (SeasonManager.Instance != null && !card.IsAvailableInSeason(SeasonManager.Instance.CurrentSeason))
+                    continue;
                 if (inPile.Contains(card.id))
                     continue;
                 if (keepCardId != null && card.id == keepCardId)
@@ -741,11 +808,18 @@ public class GameManager : MonoBehaviour
         drawPile.Clear();
 
         int era = CurrentEra;
+        Season season = SeasonManager.Instance != null
+            ? SeasonManager.Instance.CurrentSeason
+            : SeasonManager.SeasonFromYearsRuled(YearsRuled);
+
         for (int i = 0; i < deck.Count; i++)
         {
             Card card = deck[i];
-            if (card != null && card.IsAvailableInEra(era))
-                drawPile.Add(card);
+            if (card == null || !card.IsAvailableInEra(era))
+                continue;
+            if (!card.IsAvailableInSeason(season))
+                continue;
+            drawPile.Add(card);
         }
 
         // Safety: if an era has no tagged cards yet, fall back to the full unlocked deck.
@@ -760,8 +834,23 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void OnEraAdvanced(int newEra)
     {
-        RefillDrawPile();
+        RefillDrawPileExcludingCurrent();
         Debug.Log($"GameManager: Advanced to {EraProgression.GetEraDisplayName(newEra)} (year {YearsRuled}).");
+    }
+
+    private void OnSeasonAdvanced(Season newSeason)
+    {
+        RefillDrawPileExcludingCurrent();
+        Debug.Log(
+            $"GameManager: Season → {SeasonManager.GetDisplayName(newSeason)} (year {YearsRuled}).");
+    }
+
+    private void RefillDrawPileExcludingCurrent()
+    {
+        string keepId = currentCard != null ? currentCard.id : null;
+        RefillDrawPile();
+        if (!string.IsNullOrEmpty(keepId))
+            RemoveFromDrawPileById(keepId);
     }
 
     private void ShowNextCard()
@@ -790,6 +879,9 @@ public class GameManager : MonoBehaviour
         }
 
         DisplayCard(next);
+
+        if (TryBeginMiniGame(next))
+            return;
 
         if (cardSwipe != null)
         {
@@ -933,6 +1025,9 @@ public class GameManager : MonoBehaviour
 
     private void HandleSwipeLeft()
     {
+        if (miniGameActive)
+            return;
+
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySwipeLeft();
 
@@ -941,15 +1036,124 @@ public class GameManager : MonoBehaviour
 
     private void HandleSwipeRight()
     {
+        if (miniGameActive)
+            return;
+
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySwipeRight();
 
         ResolveChoice(isLeft: false);
     }
 
+    /// <summary>
+    /// Starts a card-driven mini-game when <see cref="Card.miniGame"/> is set.
+    /// </summary>
+    private bool TryBeginMiniGame(Card card)
+    {
+        if (card == null || string.IsNullOrWhiteSpace(card.miniGame))
+            return false;
+
+        string id = card.miniGame.Trim();
+        if (!id.Equals(DuelController.MiniGameId, System.StringComparison.OrdinalIgnoreCase) &&
+            !id.Equals("Duel", System.StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var duel = DuelController.Instance != null
+            ? DuelController.Instance
+            : FindObjectOfType<DuelController>();
+
+        if (duel == null)
+            duel = new GameObject("DuelController").AddComponent<DuelController>();
+
+        miniGameActive = true;
+        isResolvingChoice = true;
+
+        if (cardSwipe != null)
+        {
+            cardSwipe.SetInputEnabled(false);
+            cardSwipe.PrepareForNextCard();
+        }
+
+        if (uiManager != null)
+            uiManager.ClearSwipeFeedback();
+
+        duel.BeginDuel(card, OnSwordDuelCompleted);
+        return true;
+    }
+
+    private void OnSwordDuelCompleted(bool won)
+    {
+        miniGameActive = false;
+
+        if (kingdomStats != null && kingdomStats.IsGameOver)
+        {
+            isResolvingChoice = false;
+            return;
+        }
+
+        var duel = DuelController.Instance;
+        if (won)
+        {
+            StatModifiers rewards = duel != null
+                ? duel.CreateVictoryRewards()
+                : new StatModifiers { army = 15, people = 5, wealth = -5 };
+
+            if (FloatingStatText.Instance != null)
+                FloatingStatText.Instance.PlayChoiceFeedback(rewards);
+
+            rewards.Apply(kingdomStats);
+            RefreshStatHud(immediate: false);
+
+            string victoryId = duel != null ? duel.VictoryCardId : "duel_victory";
+            QueueForcedNextCard(victoryId);
+        }
+        else
+        {
+            string deathId = duel != null ? duel.DeathCardId : "duel_death";
+            QueueForcedNextCard(deathId);
+        }
+
+        if (!inTutorial)
+        {
+            int eraBefore = CurrentEra;
+            Season seasonBefore = SeasonManager.Instance != null
+                ? SeasonManager.Instance.CurrentSeason
+                : Season.Spring;
+
+            YearsRuled++;
+            RefreshScoreHud();
+
+            if (SeasonManager.Instance != null)
+            {
+                SeasonManager.Instance.SyncFromYearsRuled(YearsRuled);
+                if (SeasonManager.Instance.CurrentSeason != seasonBefore)
+                    OnSeasonAdvanced(SeasonManager.Instance.CurrentSeason);
+            }
+
+            if (CurrentEra != eraBefore)
+                OnEraAdvanced(CurrentEra);
+
+            if (achievementManager != null)
+            {
+                achievementManager.NotifyYearsRuled(YearsRuled);
+                achievementManager.NotifyWealthMaxed(kingdomStats.Wealth);
+            }
+
+            if (QuestManager.Instance != null)
+                QuestManager.Instance.NotifyYearsRuled(YearsRuled);
+        }
+
+        isResolvingChoice = false;
+
+        if (cardSwipe != null)
+            cardSwipe.PrepareForNextCard();
+
+        ShowNextCard();
+    }
+
     private void ResolveChoice(bool isLeft)
     {
-        if (isResolvingChoice || currentCard == null || kingdomStats.IsGameOver)
+        if (isResolvingChoice || miniGameActive || currentCard == null || kingdomStats.IsGameOver)
             return;
 
         isResolvingChoice = true;
@@ -980,13 +1184,32 @@ public class GameManager : MonoBehaviour
             ? currentCard.leftChoiceGrantItem
             : currentCard.rightChoiceGrantItem;
 
+        string consumeItemId = isLeft
+            ? currentCard.leftChoiceConsumeItem
+            : currentCard.rightChoiceConsumeItem;
+
+        StatModifiers itemCost = isLeft
+            ? currentCard.leftChoiceItemCost
+            : currentCard.rightChoiceItemCost;
+
         FactionDelta[] factionDeltas = isLeft
             ? currentCard.leftChoiceFactionDeltas
             : currentCard.rightChoiceFactionDeltas;
 
-        // Grant before applying mods so a newly received charm can save this same choice.
-        if (inventoryManager != null)
-            inventoryManager.GrantItem(grantItemId);
+        string storyArcId = isLeft
+            ? currentCard.leftChoiceStoryArcId
+            : currentCard.rightChoiceStoryArcId;
+
+        int storyArcDelta = isLeft
+            ? currentCard.leftChoiceStoryArcDelta
+            : currentCard.rightChoiceStoryArcDelta;
+
+        string storyFlag = isLeft
+            ? currentCard.leftChoiceStoryFlag
+            : currentCard.rightChoiceStoryFlag;
+
+        // Item trades/grants: pay consume + cost first, then grant (capacity permitting).
+        ResolveItemTrade(consumeItemId, itemCost, grantItemId);
 
         if (!inTutorial && analyticsManager != null)
             analyticsManager.LogCardChoice(currentCard.id, isLeft);
@@ -996,9 +1219,11 @@ public class GameManager : MonoBehaviour
         int beforeArmy = kingdomStats.Army;
         int beforeWealth = kingdomStats.Wealth;
 
-        // Scale choice impact with run length (tutorial stays at 1×).
+        // Scale choice impact with run length (tutorial stays at 1×), then seasonal passives.
         float scale = inTutorial ? 1f : DifficultyScale;
         StatModifiers scaledModifiers = modifiers != null ? modifiers.CreateScaled(scale) : null;
+        if (!inTutorial && SeasonManager.Instance != null)
+            scaledModifiers = SeasonManager.Instance.ApplySeasonalModifiers(scaledModifiers);
 
         if (FloatingStatText.Instance != null)
             FloatingStatText.Instance.PlayChoiceFeedback(scaledModifiers);
@@ -1015,6 +1240,9 @@ public class GameManager : MonoBehaviour
         if (!inTutorial && FactionRelationshipManager.Instance != null)
             FactionRelationshipManager.Instance.ApplyDeltas(factionDeltas);
 
+        if (!inTutorial)
+            ApplyStoryArcChoice(storyArcId, storyArcDelta, storyFlag, unlockFlag);
+
         RefreshStatHud(immediate: false);
         RefreshStatusEffectUi();
         EvaluateDangerShake(beforeReligion, beforePeople, beforeArmy, beforeWealth);
@@ -1022,8 +1250,19 @@ public class GameManager : MonoBehaviour
         if (!inTutorial)
         {
             int eraBefore = CurrentEra;
+            Season seasonBefore = SeasonManager.Instance != null
+                ? SeasonManager.Instance.CurrentSeason
+                : Season.Spring;
+
             YearsRuled++;
             RefreshScoreHud();
+
+            if (SeasonManager.Instance != null)
+            {
+                SeasonManager.Instance.SyncFromYearsRuled(YearsRuled);
+                if (SeasonManager.Instance.CurrentSeason != seasonBefore)
+                    OnSeasonAdvanced(SeasonManager.Instance.CurrentSeason);
+            }
 
             if (CurrentEra != eraBefore)
                 OnEraAdvanced(CurrentEra);
@@ -1042,6 +1281,47 @@ public class GameManager : MonoBehaviour
             cardSwipe.DiscardCard(isLeft, OnDiscardComplete);
         else
             OnDiscardComplete();
+    }
+
+    /// <summary>
+    /// Handles grant / trade / cost for a resolved choice.
+    /// Missing required trade items skip the grant (choice stats still apply).
+    /// </summary>
+    private void ResolveItemTrade(string consumeItemId, StatModifiers itemCost, string grantItemId)
+    {
+        if (inventoryManager == null)
+            return;
+
+        bool needsConsume = !string.IsNullOrWhiteSpace(consumeItemId);
+        bool needsGrant = !string.IsNullOrWhiteSpace(grantItemId);
+        bool needsCost = itemCost != null &&
+                         (itemCost.religion != 0 || itemCost.people != 0 ||
+                          itemCost.army != 0 || itemCost.wealth != 0);
+
+        if (!needsConsume && !needsGrant && !needsCost)
+            return;
+
+        if (needsConsume && !inventoryManager.HasItem(consumeItemId))
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log($"GameManager: Trade skipped — missing required item '{consumeItemId}'.");
+#endif
+            return;
+        }
+
+        if (needsConsume)
+            inventoryManager.ConsumeItem(consumeItemId);
+
+        if (needsCost)
+        {
+            if (FloatingStatText.Instance != null)
+                FloatingStatText.Instance.PlayChoiceFeedback(itemCost);
+            itemCost.Apply(kingdomStats);
+        }
+
+        // Grant after consume so a 3/3 inventory can free a slot via trade.
+        if (needsGrant)
+            inventoryManager.GrantItem(grantItemId);
     }
 
     private void QueueForcedNextCard(string nextCardId)
@@ -1110,6 +1390,13 @@ public class GameManager : MonoBehaviour
 
     private void OnDiscardComplete()
     {
+        if (legendaryEndingQueued)
+        {
+            legendaryEndingQueued = false;
+            BeginLegendaryEndingSequence();
+            return;
+        }
+
         if (kingdomStats.IsGameOver)
         {
             DeathCause cause = pendingDeathCause != DeathCause.None
@@ -1126,6 +1413,110 @@ public class GameManager : MonoBehaviour
         }
 
         ShowNextCard();
+    }
+
+    private void ApplyStoryArcChoice(string arcId, int delta, string storyFlag, string unlockFlag)
+    {
+        var arcs = StoryArcManager.Instance;
+        if (arcs == null)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(storyFlag))
+            arcs.SetStoryFlag(storyFlag);
+
+        // Default +1 when an arc id is authored without an explicit delta.
+        if (!string.IsNullOrWhiteSpace(arcId) && delta == 0)
+            delta = 1;
+
+        if (!string.IsNullOrWhiteSpace(arcId) && delta != 0)
+            arcs.ApplyArcDelta(arcId, delta);
+        else if (!string.IsNullOrWhiteSpace(unlockFlag))
+        {
+            // Legacy bridge when the choice has no explicit story-arc fields.
+            if (unlockFlag.Trim().Equals("Discovered_Dragon", System.StringComparison.OrdinalIgnoreCase))
+                arcs.ApplyArcDelta("dragon_slayer", 1);
+            else if (unlockFlag.Trim().Equals("Slayed_Dragon", System.StringComparison.OrdinalIgnoreCase))
+                arcs.ApplyArcDelta("dragon_slayer", 2);
+        }
+
+        if (arcs.HasPendingLegendaryEnding())
+            legendaryEndingQueued = true;
+    }
+
+    private void BeginLegendaryEndingSequence()
+    {
+        if (gameOverSequenceRunning)
+            return;
+
+        StartCoroutine(LegendaryEndingSequence());
+    }
+
+    private System.Collections.IEnumerator LegendaryEndingSequence()
+    {
+        gameOverSequenceRunning = true;
+        hasActiveRun = false;
+        isResolvingChoice = false;
+        miniGameActive = false;
+
+        StoryArcDefinition ending = StoryArcManager.Instance != null
+            ? StoryArcManager.Instance.ConsumePendingLegendaryEnding()
+            : null;
+
+        if (QuestManager.Instance != null)
+            QuestManager.Instance.EndRun();
+
+        if (saveManager != null)
+            saveManager.DeleteSave();
+
+        TryUpdateHighScore();
+
+        if (DynastyHistoryManager.Instance != null)
+            DynastyHistoryManager.Instance.StagePendingDeath(YearsRuled, DeathCause.None);
+
+        if (DailyChallengeManager.Instance != null && DailyChallengeManager.Instance.IsDailyRunActive)
+            DailyChallengeManager.Instance.RecordDailyScore(YearsRuled);
+
+        if (adManager != null)
+            adManager.SetBannerAllowed(false);
+
+        string title = ending != null && !string.IsNullOrWhiteSpace(ending.endingTitle)
+            ? ending.endingTitle
+            : "Legendary Ending";
+        string body = ending != null && !string.IsNullOrWhiteSpace(ending.endingBody)
+            ? ending.endingBody
+            : "Your reign becomes legend.";
+
+        string message = $"{title}\n\n{body}";
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayGameOver();
+
+        void ShowPanel()
+        {
+            if (uiManager != null)
+            {
+                // Legendary finales are not second-chance deaths.
+                uiManager.ShowGameOver(message, YearsRuled, LongestReign, secondChanceAvailable: false);
+            }
+
+            var badges = FindObjectOfType<LegendaryEndingsUI>();
+            if (badges != null)
+                badges.Refresh();
+        }
+
+        if (UIFadeTransition.Instance != null)
+        {
+            UIFadeTransition.Instance.TransitionTo(
+                UIFadeTransition.ScreenId.GameOver,
+                onMidpoint: ShowPanel);
+        }
+        else
+        {
+            ShowPanel();
+        }
+
+        gameOverSequenceRunning = false;
+        yield break;
     }
 
     private void HandleGameOver(DeathCause cause)
@@ -1494,6 +1885,13 @@ public class GameManager : MonoBehaviour
 
         RemoveFromDrawPileById(card.id);
         DisplayCard(card);
+
+        if (TryBeginMiniGame(card))
+        {
+            hasActiveRun = true;
+            DebugRefreshHud();
+            return true;
+        }
 
         if (cardSwipe != null)
         {

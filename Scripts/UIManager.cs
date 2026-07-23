@@ -449,6 +449,8 @@ public class UIManager : MonoBehaviour
                     ? currentCard.rightChoiceModifiers
                     : null;
             preview = raw != null ? raw.CreateScaled(difficultyScale) : null;
+            if (preview != null && SeasonManager.Instance != null)
+                preview = SeasonManager.Instance.ApplySeasonalModifiers(preview);
         }
 
         SetStatChangeIndicators(preview);

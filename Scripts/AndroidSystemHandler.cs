@@ -121,6 +121,13 @@ public class AndroidSystemHandler : MonoBehaviour
             return;
         }
 
+        if (DuelVisible())
+        {
+            // Mini-game owns the screen — back opens pause instead of aborting the duel.
+            OpenPauseMenu();
+            return;
+        }
+
         if (QuestDrawerVisible())
         {
             var questUi = FindObjectOfType<QuestUI>();
@@ -255,6 +262,14 @@ public class AndroidSystemHandler : MonoBehaviour
     {
         var ledger = FindObjectOfType<FactionLedgerUI>();
         return ledger != null && ledger.IsOpen;
+    }
+
+    private static bool DuelVisible()
+    {
+        var duel = DuelController.Instance != null
+            ? DuelController.Instance
+            : FindObjectOfType<DuelController>();
+        return duel != null && duel.IsActive;
     }
 
     private static bool QuestDrawerVisible()

@@ -180,6 +180,15 @@ public class CardEditorWindow : EditorWindow
             card.prerequisiteFlag = EditorGUILayout.TextField("Prerequisite Flag", card.prerequisiteFlag ?? string.Empty);
             card.era = EditorGUILayout.IntSlider(new GUIContent("Era Filter", "0 = any era, 1/2/3 = only that era"), card.era, 0, 3);
             card.weather = EditorGUILayout.TextField(new GUIContent("Weather", "Snow, Rain, Embers, Dust, or None"), card.weather ?? string.Empty);
+            card.requiredSeason = EditorGUILayout.TextField(
+                new GUIContent("Required Season", "Empty = any; Spring / Summer / Autumn / Winter"),
+                card.requiredSeason ?? string.Empty);
+            card.miniGame = EditorGUILayout.TextField(
+                new GUIContent("Mini-Game", "Empty = swipe; SwordDuel = duel overlay"),
+                card.miniGame ?? string.Empty);
+            card.leftChoiceStoryArcId = EditorGUILayout.TextField("Left Story Arc Id", card.leftChoiceStoryArcId ?? string.Empty);
+            card.leftChoiceStoryArcDelta = EditorGUILayout.IntField("Left Story Arc Delta", card.leftChoiceStoryArcDelta);
+            card.leftChoiceStoryFlag = EditorGUILayout.TextField("Left Story Flag", card.leftChoiceStoryFlag ?? string.Empty);
             card.portraitResourcePath = EditorGUILayout.TextField("Portrait Resource Path", card.portraitResourcePath ?? string.Empty);
             card.voiceResourcePath = EditorGUILayout.TextField("Voice Resource Path", card.voiceResourcePath ?? string.Empty);
 
@@ -193,6 +202,10 @@ public class CardEditorWindow : EditorWindow
             DrawStatModifiers(card.leftChoiceModifiers);
             card.leftChoiceUnlockFlag = EditorGUILayout.TextField("Unlock Flag", card.leftChoiceUnlockFlag ?? string.Empty);
             card.leftChoiceGrantItem = EditorGUILayout.TextField("Grant Item", card.leftChoiceGrantItem ?? string.Empty);
+            card.leftChoiceConsumeItem = EditorGUILayout.TextField("Consume Item (Trade)", card.leftChoiceConsumeItem ?? string.Empty);
+            EnsureModifiers(ref card.leftChoiceItemCost);
+            EditorGUILayout.LabelField("Item Cost (stats)", EditorStyles.miniBoldLabel);
+            DrawStatModifiers(card.leftChoiceItemCost);
             card.NextCardID_Left = EditorGUILayout.TextField("Next Card ID", card.NextCardID_Left ?? string.Empty);
             DrawStatusEffects("Status Effects", ref card.leftChoiceStatusEffects);
 
@@ -203,6 +216,13 @@ public class CardEditorWindow : EditorWindow
             DrawStatModifiers(card.rightChoiceModifiers);
             card.rightChoiceUnlockFlag = EditorGUILayout.TextField("Unlock Flag", card.rightChoiceUnlockFlag ?? string.Empty);
             card.rightChoiceGrantItem = EditorGUILayout.TextField("Grant Item", card.rightChoiceGrantItem ?? string.Empty);
+            card.rightChoiceConsumeItem = EditorGUILayout.TextField("Consume Item (Trade)", card.rightChoiceConsumeItem ?? string.Empty);
+            EnsureModifiers(ref card.rightChoiceItemCost);
+            EditorGUILayout.LabelField("Item Cost (stats)", EditorStyles.miniBoldLabel);
+            DrawStatModifiers(card.rightChoiceItemCost);
+            card.rightChoiceStoryArcId = EditorGUILayout.TextField("Right Story Arc Id", card.rightChoiceStoryArcId ?? string.Empty);
+            card.rightChoiceStoryArcDelta = EditorGUILayout.IntField("Right Story Arc Delta", card.rightChoiceStoryArcDelta);
+            card.rightChoiceStoryFlag = EditorGUILayout.TextField("Right Story Flag", card.rightChoiceStoryFlag ?? string.Empty);
             card.NextCardID_Right = EditorGUILayout.TextField("Next Card ID", card.NextCardID_Right ?? string.Empty);
             DrawStatusEffects("Status Effects", ref card.rightChoiceStatusEffects);
 
@@ -693,10 +713,17 @@ public class CardEditorWindow : EditorWindow
         card.rightChoiceUnlockFlag ??= string.Empty;
         card.leftChoiceGrantItem ??= string.Empty;
         card.rightChoiceGrantItem ??= string.Empty;
+        card.leftChoiceConsumeItem ??= string.Empty;
+        card.rightChoiceConsumeItem ??= string.Empty;
         card.NextCardID_Left ??= string.Empty;
         card.NextCardID_Right ??= string.Empty;
+        card.weather ??= string.Empty;
+        card.requiredSeason ??= string.Empty;
+        card.miniGame ??= string.Empty;
         EnsureModifiers(ref card.leftChoiceModifiers);
         EnsureModifiers(ref card.rightChoiceModifiers);
+        EnsureModifiers(ref card.leftChoiceItemCost);
+        EnsureModifiers(ref card.rightChoiceItemCost);
         card.leftChoiceStatusEffects ??= Array.Empty<StatusEffect>();
         card.rightChoiceStatusEffects ??= Array.Empty<StatusEffect>();
     }
@@ -716,6 +743,8 @@ public class CardEditorWindow : EditorWindow
             prerequisiteFlag = string.Empty,
             era = 0,
             weather = string.Empty,
+            requiredSeason = string.Empty,
+            miniGame = string.Empty,
             portraitResourcePath = string.Empty,
             voiceResourcePath = string.Empty,
             leftChoiceText = string.Empty,
@@ -723,10 +752,15 @@ public class CardEditorWindow : EditorWindow
             leftChoiceStatusEffects = Array.Empty<StatusEffect>(),
             leftChoiceUnlockFlag = string.Empty,
             leftChoiceGrantItem = string.Empty,
+            leftChoiceConsumeItem = string.Empty,
+            leftChoiceItemCost = new StatModifiers(),
             rightChoiceText = string.Empty,
             rightChoiceModifiers = new StatModifiers(),
             rightChoiceStatusEffects = Array.Empty<StatusEffect>(),
             rightChoiceUnlockFlag = string.Empty,
+            rightChoiceGrantItem = string.Empty,
+            rightChoiceConsumeItem = string.Empty,
+            rightChoiceItemCost = new StatModifiers(),
             rightChoiceGrantItem = string.Empty,
             NextCardID_Left = string.Empty,
             NextCardID_Right = string.Empty

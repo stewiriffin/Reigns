@@ -98,6 +98,18 @@ public class Card
     public string weather;
 
     /// <summary>
+    /// Optional season lock (Spring / Summer / Autumn / Winter). Empty = any season.
+    /// JSON field: "requiredSeason".
+    /// </summary>
+    public string requiredSeason;
+
+    /// <summary>
+    /// Optional mini-game id when this card is drawn (e.g. "SwordDuel"). Empty = normal swipe.
+    /// JSON field: "miniGame".
+    /// </summary>
+    public string miniGame;
+
+    /// <summary>
     /// Resources path to the character portrait sprite (no extension), e.g. "Characters/Priest/portrait".
     /// Resolved into <see cref="portrait"/> after JSON load.
     /// </summary>
@@ -122,8 +134,18 @@ public class Card
     public string leftChoiceUnlockFlag;
     /// <summary>Item ID granted when the player picks the left choice.</summary>
     public string leftChoiceGrantItem;
+    /// <summary>Item ID consumed (traded away) when the player picks the left choice.</summary>
+    public string leftChoiceConsumeItem;
+    /// <summary>Extra stat cost paid when completing a left-choice item grant/trade (usually negative).</summary>
+    public StatModifiers leftChoiceItemCost;
     /// <summary>Hidden faction loyalty deltas for the left choice.</summary>
     public FactionDelta[] leftChoiceFactionDeltas;
+    /// <summary>Story arc id advanced by the left choice (e.g. dragon_slayer).</summary>
+    public string leftChoiceStoryArcId;
+    /// <summary>Delta applied to <see cref="leftChoiceStoryArcId"/> (usually +1).</summary>
+    public int leftChoiceStoryArcDelta;
+    /// <summary>Optional narrative flag set on left choice (e.g. Crusade_Initiated).</summary>
+    public string leftChoiceStoryFlag;
 
     public string rightChoiceText;
     public StatModifiers rightChoiceModifiers;
@@ -132,8 +154,18 @@ public class Card
     public string rightChoiceUnlockFlag;
     /// <summary>Item ID granted when the player picks the right choice.</summary>
     public string rightChoiceGrantItem;
+    /// <summary>Item ID consumed (traded away) when the player picks the right choice.</summary>
+    public string rightChoiceConsumeItem;
+    /// <summary>Extra stat cost paid when completing a right-choice item grant/trade.</summary>
+    public StatModifiers rightChoiceItemCost;
     /// <summary>Hidden faction loyalty deltas for the right choice.</summary>
     public FactionDelta[] rightChoiceFactionDeltas;
+    /// <summary>Story arc id advanced by the right choice.</summary>
+    public string rightChoiceStoryArcId;
+    /// <summary>Delta applied to <see cref="rightChoiceStoryArcId"/>.</summary>
+    public int rightChoiceStoryArcDelta;
+    /// <summary>Optional narrative flag set on right choice.</summary>
+    public string rightChoiceStoryFlag;
 
     /// <summary>
     /// Optional. If set, a left swipe queues this card ID as the next draw (skips the random pool).
@@ -170,6 +202,15 @@ public class Card
     public bool IsAvailableInEra(int currentEra)
     {
         return era <= 0 || era == currentEra;
+    }
+
+    /// <summary>True when this card may appear in the given season (empty requiredSeason = always).</summary>
+    public bool IsAvailableInSeason(Season currentSeason)
+    {
+        if (!SeasonManager.TryParseSeasonRequirement(requiredSeason, out Season required))
+            return true;
+
+        return required == currentSeason;
     }
 }
 

@@ -129,6 +129,7 @@ public class DynastyHistoryManager : MonoBehaviour
     {
         return cause switch
         {
+            DeathCause.None => "Legendary Ending",
             DeathCause.ReligionEmpty => "Faith Lost",
             DeathCause.ReligionFull => "Theocracy",
             DeathCause.PeopleEmpty => "Revolt",
@@ -145,6 +146,7 @@ public class DynastyHistoryManager : MonoBehaviour
     {
         return cause switch
         {
+            DeathCause.None => "★",
             DeathCause.ReligionEmpty => "R↓",
             DeathCause.ReligionFull => "R↑",
             DeathCause.PeopleEmpty => "P↓",

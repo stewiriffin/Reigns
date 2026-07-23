@@ -1,0 +1,54 @@
+{
+  "arcs": [
+    {
+      "id": "empire_unifier",
+      "flagKey": "Empire_Unifier_Progress",
+      "displayName": "Unified the Empire",
+      "description": "Bind foreign crowns, banners, and borders under one throne.",
+      "badgeGlyph": "♛",
+      "requiredSteps": 5,
+      "endingTitle": "Unified the Empire",
+      "endingBody": "Legions salute a single crown. Maps are redrawn in your ink — the realm endures as one empire."
+    },
+    {
+      "id": "cult_overthrow",
+      "flagKey": "Cult_Overthrow_Progress",
+      "displayName": "Overthrown by Cult",
+      "description": "Feed the fen coven until the throne becomes their altar.",
+      "badgeGlyph": "⛧",
+      "requiredSteps": 5,
+      "endingTitle": "Overthrown by Cult",
+      "endingBody": "Chanting fills the halls. Your crown is taken not by steel, but by a circle of witches who name a new age."
+    },
+    {
+      "id": "dragon_slayer",
+      "flagKey": "DragonSlayer_Progress",
+      "displayName": "Dragon's Bane",
+      "description": "Hunt the wyrm from rumor to ash.",
+      "badgeGlyph": "🐉",
+      "requiredSteps": 5,
+      "endingTitle": "Dragon's Bane",
+      "endingBody": "The last scale cools in the courtyard. Songs name you Dragon's Bane — a legend forged in fire."
+    },
+    {
+      "id": "eternal_crusade",
+      "flagKey": "Crusade_Initiated",
+      "displayName": "Eternal Crusade",
+      "description": "Consecrate war until faith and army become one blade.",
+      "badgeGlyph": "✝",
+      "requiredSteps": 5,
+      "endingTitle": "Eternal Crusade",
+      "endingBody": "Banners of the faith never lower. Your reign ends not in peace, but as the Eternal Crusade marching beyond the map."
+    },
+    {
+      "id": "merchant_crown",
+      "flagKey": "Merchant_Crown_Progress",
+      "displayName": "Crowns of Coin",
+      "description": "Let the Guild write law in ledgers and gold.",
+      "badgeGlyph": "⚜",
+      "requiredSteps": 5,
+      "endingTitle": "Crowns of Coin",
+      "endingBody": "The throne is a counting house. Merchants wear your seal — and the realm answers to Crowns of Coin."
+    }
+  ]
+}
