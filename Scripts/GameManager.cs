@@ -122,7 +122,37 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         if (TryResumeFromSave())
+        {
+            if (UIFadeTransition.Instance != null)
+                UIFadeTransition.Instance.SnapTo(UIFadeTransition.ScreenId.Gameplay);
             return;
+        }
+
+        // Prefer start menu when a fade controller + start screen exist.
+        if (UIFadeTransition.Instance != null)
+        {
+            UIFadeTransition.Instance.SnapTo(UIFadeTransition.ScreenId.StartMenu);
+            return;
+        }
+
+        StartNewGame();
+    }
+
+    /// <summary>
+    /// Hook for the Start Menu Play button.
+    /// </summary>
+    public void OnStartMenuPlayPressed()
+    {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
+
+        if (UIFadeTransition.Instance != null)
+        {
+            UIFadeTransition.Instance.TransitionTo(
+                UIFadeTransition.ScreenId.Gameplay,
+                onMidpoint: StartNewGame);
+            return;
+        }
 
         StartNewGame();
     }
@@ -134,6 +164,14 @@ public class GameManager : MonoBehaviour
     {
         if (saveManager != null)
             saveManager.DeleteSave();
+
+        if (UIFadeTransition.Instance != null)
+        {
+            UIFadeTransition.Instance.TransitionTo(
+                UIFadeTransition.ScreenId.Gameplay,
+                onMidpoint: StartNewGame);
+            return;
+        }
 
         StartNewGame();
     }
@@ -476,17 +514,26 @@ public class GameManager : MonoBehaviour
         if (uiManager != null)
             uiManager.UpdateCardUI(card);
 
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayCardDraw();
+
         if (cardVoicePlayer != null)
             cardVoicePlayer.PlayCardVoice(card);
     }
 
     private void HandleSwipeLeft()
     {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySwipeLeft();
+
         ResolveChoice(isLeft: true);
     }
 
     private void HandleSwipeRight()
     {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySwipeRight();
+
         ResolveChoice(isLeft: false);
     }
 
@@ -527,12 +574,21 @@ public class GameManager : MonoBehaviour
         if (inventoryManager != null)
             inventoryManager.GrantItem(grantItemId);
 
+        int beforeReligion = kingdomStats.Religion;
+        int beforePeople = kingdomStats.People;
+        int beforeArmy = kingdomStats.Army;
+        int beforeWealth = kingdomStats.Wealth;
+
+        if (StatFeedbackParticles.Instance != null)
+            StatFeedbackParticles.Instance.PlayChoiceFeedback(modifiers);
+
         modifiers?.Apply(kingdomStats);
         statusEffects.AddRange(grantedEffects);
         TryGrantMetaFlag(unlockFlag);
         QueueForcedNextCard(nextCardId);
         RefreshStatHud(immediate: false);
         RefreshStatusEffectUi();
+        EvaluateDangerShake(beforeReligion, beforePeople, beforeArmy, beforeWealth);
 
         YearsRuled++;
         RefreshScoreHud();
@@ -614,14 +670,57 @@ public class GameManager : MonoBehaviour
     {
         string deathMessage = DeathMessageLoader.GetMessage(deathMessages, cause);
 
-        if (uiManager != null)
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayGameOver();
+
+        if (ScreenShake.Instance != null)
+            ScreenShake.Instance.ShakeGameOver();
+
+        void ShowPanel()
         {
-            uiManager.ShowGameOver(
-                deathMessage,
-                YearsRuled,
-                LongestReign,
-                secondChanceAvailable: !secondChanceUsedThisDeath);
+            if (uiManager != null)
+            {
+                uiManager.ShowGameOver(
+                    deathMessage,
+                    YearsRuled,
+                    LongestReign,
+                    secondChanceAvailable: !secondChanceUsedThisDeath);
+            }
         }
+
+        if (UIFadeTransition.Instance != null)
+        {
+            UIFadeTransition.Instance.TransitionTo(
+                UIFadeTransition.ScreenId.GameOver,
+                onMidpoint: ShowPanel);
+            return;
+        }
+
+        ShowPanel();
+    }
+
+    private void EvaluateDangerShake(int beforeReligion, int beforePeople, int beforeArmy, int beforeWealth)
+    {
+        if (ScreenShake.Instance == null)
+            return;
+
+        const int danger = 15;
+        if (DroppedIntoDanger(beforeReligion, kingdomStats.Religion, danger)
+            || DroppedIntoDanger(beforePeople, kingdomStats.People, danger)
+            || DroppedIntoDanger(beforeArmy, kingdomStats.Army, danger)
+            || DroppedIntoDanger(beforeWealth, kingdomStats.Wealth, danger))
+        {
+            ScreenShake.Instance.ShakeDanger();
+        }
+    }
+
+    private static bool DroppedIntoDanger(int before, int after, int dangerThreshold)
+    {
+        if (after >= dangerThreshold)
+            return false;
+
+        // Newly entered danger, or got worse while already in danger.
+        return before >= dangerThreshold || after < before;
     }
 
     private void OnSecondChanceClicked()
@@ -682,6 +781,9 @@ public class GameManager : MonoBehaviour
             uiManager.HideGameOver();
             uiManager.SetSecondChanceAvailable(false);
         }
+
+        if (UIFadeTransition.Instance != null)
+            UIFadeTransition.Instance.SnapTo(UIFadeTransition.ScreenId.Gameplay);
 
         Debug.Log($"GameManager: Second Chance — restored {failed} to 50 at year {YearsRuled}.");
 

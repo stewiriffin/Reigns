@@ -75,6 +75,22 @@ public class UIManager : MonoBehaviour
     private Color leftChoiceBaseColor = Color.white;
     private Color rightChoiceBaseColor = Color.white;
 
+    private void OnEnable()
+    {
+        LocalizationManager.OnLanguageChanged += HandleLanguageChanged;
+    }
+
+    private void OnDisable()
+    {
+        LocalizationManager.OnLanguageChanged -= HandleLanguageChanged;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        if (currentCard != null)
+            UpdateCardUI(currentCard);
+    }
+
     private void Awake()
     {
         ConfigureSlider(religionSlider);
@@ -96,7 +112,8 @@ public class UIManager : MonoBehaviour
         if (playAgainButton == null || onPlayAgain == null)
             return;
 
-        playAgainButton.onClick.RemoveListener(onPlayAgain);
+        playAgainButton.onClick.RemoveAllListeners();
+        playAgainButton.onClick.AddListener(PlayButtonClickSfx);
         playAgainButton.onClick.AddListener(onPlayAgain);
     }
 
@@ -108,8 +125,15 @@ public class UIManager : MonoBehaviour
         if (secondChanceButton == null || onSecondChance == null)
             return;
 
-        secondChanceButton.onClick.RemoveListener(onSecondChance);
+        secondChanceButton.onClick.RemoveAllListeners();
+        secondChanceButton.onClick.AddListener(PlayButtonClickSfx);
         secondChanceButton.onClick.AddListener(onSecondChance);
+    }
+
+    private static void PlayButtonClickSfx()
+    {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
     }
 
     /// <summary>
@@ -148,6 +172,23 @@ public class UIManager : MonoBehaviour
     {
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Returns the RectTransform for a kingdom stat slider (used by feedback FX).
+    /// </summary>
+    public RectTransform GetStatSliderRect(StatType stat)
+    {
+        Slider slider = stat switch
+        {
+            StatType.Religion => religionSlider,
+            StatType.People => peopleSlider,
+            StatType.Army => armySlider,
+            StatType.Wealth => wealthSlider,
+            _ => null
+        };
+
+        return slider != null ? slider.GetComponent<RectTransform>() : null;
     }
 
     /// <summary>
@@ -190,13 +231,13 @@ public class UIManager : MonoBehaviour
         currentCard = card;
 
         if (scenarioText != null)
-            scenarioText.text = card != null ? card.scenarioText : string.Empty;
+            scenarioText.text = card != null ? card.GetScenarioText() : string.Empty;
 
         if (leftChoiceText != null)
-            leftChoiceText.text = card != null ? card.leftChoiceText : string.Empty;
+            leftChoiceText.text = card != null ? card.GetLeftChoiceText() : string.Empty;
 
         if (rightChoiceText != null)
-            rightChoiceText.text = card != null ? card.rightChoiceText : string.Empty;
+            rightChoiceText.text = card != null ? card.GetRightChoiceText() : string.Empty;
 
         UpdatePortrait(card);
         ClearSwipeFeedback();

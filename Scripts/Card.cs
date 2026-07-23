@@ -34,6 +34,11 @@ public class StatModifiers
 public class Card
 {
     public string id;
+
+    /// <summary>
+    /// Localization key for the scenario body (resolved via <see cref="LocalizationManager"/>).
+    /// Legacy hardcoded English may still live here as a fallback when no table entry exists.
+    /// </summary>
     public string scenarioText;
 
     /// <summary>
@@ -85,6 +90,12 @@ public class Card
     /// Optional. If set, a right swipe queues this card ID as the next draw (skips the random pool).
     /// </summary>
     public string NextCardID_Right;
+
+    public string GetScenarioText() => LocalizationManager.Get(scenarioText, scenarioText);
+
+    public string GetLeftChoiceText() => LocalizationManager.Get(leftChoiceText, leftChoiceText);
+
+    public string GetRightChoiceText() => LocalizationManager.Get(rightChoiceText, rightChoiceText);
 
     /// <summary>
     /// Loads <see cref="portrait"/> and <see cref="speakingSound"/> from Resources using the path fields.

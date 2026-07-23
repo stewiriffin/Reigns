@@ -1,0 +1,38 @@
+{
+  "strings": [
+    { "key": "ui.play", "value": "Jugar" },
+    { "key": "ui.play_again", "value": "Jugar de nuevo" },
+    { "key": "ui.second_chance", "value": "Segunda oportunidad" },
+    { "key": "ui.game_over", "value": "Tu reinado termina" },
+    { "key": "ui.years_format", "value": "Año {0}" },
+    { "key": "ui.longest_reign_format", "value": "Reinado más largo: {0}" },
+
+    { "key": "card.plague.scenario", "value": "Una extraña enfermedad se extiende por la capital. El Sumo Sacerdote pide oraciones públicas; tus consejeros exigen cuarentena y dinero para los médicos." },
+    { "key": "card.plague.left", "value": "Celebrar una oración en la ciudad" },
+    { "key": "card.plague.right", "value": "Financiar a los médicos" },
+
+    { "key": "card.raiders.scenario", "value": "Bandidos queman aldeas en la frontera oriental. Los generales exigen una campaña total; los mercaderes te ruegan comprar su retirada." },
+    { "key": "card.raiders.left", "value": "Marchar el ejército al este" },
+    { "key": "card.raiders.right", "value": "Pagarles tributo" },
+
+    { "key": "card.wedding.scenario", "value": "Un reino vecino ofrece una alianza matrimonial. La Iglesia lo llama una bendición; el tesoro advierte que el banquete vaciará las arcas." },
+    { "key": "card.wedding.left", "value": "Aceptar y celebrar con gran fausto" },
+    { "key": "card.wedding.right", "value": "Rechazar con cortesía" },
+
+    { "key": "card.hunter.scenario", "value": "Un cazador marcado se arrodilla ante el trono. Jura que una sombra alada anida en los picos del norte y ofrece guiar una expedición." },
+    { "key": "card.hunter.left", "value": "Financiar la expedición" },
+    { "key": "card.hunter.right", "value": "Descartarlo como mentiroso" },
+
+    { "key": "card.hunter_report.scenario", "value": "El cazador vuelve al anochecer, con ceniza en la capa. Deja una escama negra a tus pies: prueba de que los picos del norte no están vacíos." },
+    { "key": "card.hunter_report.left", "value": "Preparar el reino para la guerra" },
+    { "key": "card.hunter_report.right", "value": "Sellar la noticia en la bóveda" },
+
+    { "key": "card.dragon_tribute.scenario", "value": "El dragón de los picos del norte rodea la capital. Los sacerdotes exigen ofrendas; los generales urgen asediar su guarida." },
+    { "key": "card.dragon_tribute.left", "value": "Enviar ofrendas sagradas" },
+    { "key": "card.dragon_tribute.right", "value": "Asaltar la guarida" },
+
+    { "key": "card.dragon_hoard.scenario", "value": "Supervivientes de la guerra del dragón arrastran cofres de oro chamuscado al patio. El pueblo vitorea; la Iglesia lo llama maldito." },
+    { "key": "card.dragon_hoard.left", "value": "Reclamar el tesoro para la corona" },
+    { "key": "card.dragon_hoard.right", "value": "Consagrarlo y enterrarlo" }
+  ]
+}

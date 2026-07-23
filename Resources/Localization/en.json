@@ -1,0 +1,38 @@
+{
+  "strings": [
+    { "key": "ui.play", "value": "Play" },
+    { "key": "ui.play_again", "value": "Play Again" },
+    { "key": "ui.second_chance", "value": "Second Chance" },
+    { "key": "ui.game_over", "value": "Your Reign Ends" },
+    { "key": "ui.years_format", "value": "Year {0}" },
+    { "key": "ui.longest_reign_format", "value": "Longest Reign: {0}" },
+
+    { "key": "card.plague.scenario", "value": "A strange illness spreads through the capital. The High Priest urges public prayer; your advisors demand quarantine and coin for physicians." },
+    { "key": "card.plague.left", "value": "Hold a city-wide prayer" },
+    { "key": "card.plague.right", "value": "Fund the physicians" },
+
+    { "key": "card.raiders.scenario", "value": "Raiders burn villages along the eastern border. Generals demand a full campaign; merchants beg you to buy the raiders off instead." },
+    { "key": "card.raiders.left", "value": "March the army east" },
+    { "key": "card.raiders.right", "value": "Pay them tribute" },
+
+    { "key": "card.wedding.scenario", "value": "A neighboring kingdom offers a marriage alliance. The Church calls it a blessing; the treasury warns the feast will empty the coffers." },
+    { "key": "card.wedding.left", "value": "Accept and celebrate grandly" },
+    { "key": "card.wedding.right", "value": "Decline politely" },
+
+    { "key": "card.hunter.scenario", "value": "A scarred hunter kneels before the throne. He swears a winged shadow nests in the northern peaks — and offers to lead an expedition." },
+    { "key": "card.hunter.left", "value": "Fund the expedition" },
+    { "key": "card.hunter.right", "value": "Dismiss him as a liar" },
+
+    { "key": "card.hunter_report.scenario", "value": "The hunter returns at dusk, ash on his cloak. He drops a black scale at your feet — proof the northern peaks are not empty." },
+    { "key": "card.hunter_report.left", "value": "Prepare the realm for war" },
+    { "key": "card.hunter_report.right", "value": "Seal the news in the vault" },
+
+    { "key": "card.dragon_tribute.scenario", "value": "The dragon of the northern peaks circles the capital. Priests demand offerings; generals urge a siege of its lair." },
+    { "key": "card.dragon_tribute.left", "value": "Send sacred offerings" },
+    { "key": "card.dragon_tribute.right", "value": "Assault the lair" },
+
+    { "key": "card.dragon_hoard.scenario", "value": "Survivors of the dragon war drag chests of scorched gold into the courtyard. The people cheer — the Church calls it cursed." },
+    { "key": "card.dragon_hoard.left", "value": "Claim the hoard for the crown" },
+    { "key": "card.dragon_hoard.right", "value": "Consecrate and bury it" }
+  ]
+}

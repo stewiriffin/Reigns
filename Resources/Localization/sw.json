@@ -1,0 +1,38 @@
+{
+  "strings": [
+    { "key": "ui.play", "value": "Cheza" },
+    { "key": "ui.play_again", "value": "Cheza Tena" },
+    { "key": "ui.second_chance", "value": "Nafasi ya Pili" },
+    { "key": "ui.game_over", "value": "Utawala Wako Umeisha" },
+    { "key": "ui.years_format", "value": "Mwaka {0}" },
+    { "key": "ui.longest_reign_format", "value": "Utawala Mrefu Zaidi: {0}" },
+
+    { "key": "card.plague.scenario", "value": "Ugonjwa wa ajabu unaenea katika mji mkuu. Kuhani Mkuu anahimiza sala za umma; washauri wako wanadai karantini na fedha kwa madaktari." },
+    { "key": "card.plague.left", "value": "Fanya sala katika mji mzima" },
+    { "key": "card.plague.right", "value": "Fadhili madaktari" },
+
+    { "key": "card.raiders.scenario", "value": "Wavamizi wanachoma vijiji kwenye mpaka wa mashariki. Majenerali wanadai kampeni kamili; wafanyabiashara wanakusihi uwanunue waondoke." },
+    { "key": "card.raiders.left", "value": "Tembeza jeshi mashariki" },
+    { "key": "card.raiders.right", "value": "Walipie kodi" },
+
+    { "key": "card.wedding.scenario", "value": "Ufalme jirani unatoa muungano wa ndoa. Kanisa linaita baraka; hazina inaonya karamu itamaliza fedha." },
+    { "key": "card.wedding.left", "value": "Kubali na sherehekea kwa fahari" },
+    { "key": "card.wedding.right", "value": "Kataa kwa adabu" },
+
+    { "key": "card.hunter.scenario", "value": "Mwindaji mwenye kovu anapiga magoti mbele ya kiti cha enzi. Anaapa kivuli chenye mabawa kinaishi milima ya kaskazini — na anajitolea kuongoza msafara." },
+    { "key": "card.hunter.left", "value": "Fadhili msafara" },
+    { "key": "card.hunter.right", "value": "Mpuuze kama mwongo" },
+
+    { "key": "card.hunter_report.scenario", "value": "Mwindaji anarudi jioni, majivu kwenye joho lake. Anaweka magamba meusi miguuni pako — uthibitisho milima ya kaskazini si tupu." },
+    { "key": "card.hunter_report.left", "value": "Andaa ufalme kwa vita" },
+    { "key": "card.hunter_report.right", "value": "Funga habari katika chumba cha hazina" },
+
+    { "key": "card.dragon_tribute.scenario", "value": "Joka la milima ya kaskazini linaruka kuzunguka mji mkuu. Makuhani wanadai sadaka; majenerali wanahimiza kuzingira pango lake." },
+    { "key": "card.dragon_tribute.left", "value": "Tuma sadaka takatifu" },
+    { "key": "card.dragon_tribute.right", "value": "Shambulia pango" },
+
+    { "key": "card.dragon_hoard.scenario", "value": "Walionusurika vita vya joka wanaburuta masanduku ya dhahabu iliyoungua uani. Watu wanashangilia — Kanisa linaita laana." },
+    { "key": "card.dragon_hoard.left", "value": "Dai hazina kwa taji" },
+    { "key": "card.dragon_hoard.right", "value": "Takasa na kuzika" }
+  ]
+}
