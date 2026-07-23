@@ -1,7 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Spawns short colored particle bursts near stat sliders (green = gain, red = loss).
+/// Pooled colored particle bursts near stat sliders (green = gain, red = loss).
+/// Prewarms systems once — no Instantiate/Destroy during the swipe resolve path.
 /// </summary>
 public class StatFeedbackParticles : MonoBehaviour
 {
@@ -18,11 +19,17 @@ public class StatFeedbackParticles : MonoBehaviour
     [SerializeField] private float burstRadius = 36f;
     [SerializeField] private float lifetime = 0.45f;
     [SerializeField] private float speed = 80f;
+    [SerializeField] private int poolSize = 8;
     [SerializeField] private Color gainColor = new Color(0.35f, 0.9f, 0.45f, 1f);
     [SerializeField] private Color lossColor = new Color(0.95f, 0.25f, 0.22f, 1f);
 
     [SerializeField] private UIManager uiManager;
     [SerializeField] private Canvas parentCanvas;
+    [SerializeField] private Material particleMaterial;
+
+    private ObjectPool burstPool;
+    private Transform poolRoot;
+    private static readonly Vector2 BurstAnchoredOffset = new Vector2(0f, 12f);
 
     private void Awake()
     {
@@ -39,6 +46,14 @@ public class StatFeedbackParticles : MonoBehaviour
 
         if (parentCanvas == null)
             parentCanvas = GetComponentInParent<Canvas>();
+
+        BuildPool();
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
     }
 
     /// <summary>
@@ -65,77 +80,105 @@ public class StatFeedbackParticles : MonoBehaviour
             return;
 
         Color color = delta > 0 ? gainColor : lossColor;
-        SpawnBurst(anchor, color, Mathf.Min(particleCount, 8 + Mathf.Abs(delta)));
+        int count = Mathf.Min(particleCount, 8 + Mathf.Abs(delta));
+        SpawnBurst(anchor, color, count);
+    }
+
+    private void BuildPool()
+    {
+        if (burstPool != null)
+            return;
+
+        poolRoot = new GameObject("StatParticlePool").transform;
+        poolRoot.SetParent(transform, false);
+
+        if (particleMaterial == null)
+        {
+            Shader shader = Shader.Find("Particles/Standard Unlit")
+                            ?? Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                            ?? Shader.Find("Sprites/Default");
+            if (shader != null)
+                particleMaterial = new Material(shader);
+        }
+
+        GameObject template = CreateBurstTemplate();
+        template.SetActive(false);
+
+        int sortingOrder = 50;
+        int sortingLayerId = parentCanvas != null ? parentCanvas.sortingLayerID : 0;
+
+        burstPool = new ObjectPool(template, poolRoot, Mathf.Max(2, poolSize));
+
+        for (int i = 0; i < poolSize; i++)
+        {
+            GameObject go = burstPool.Get();
+            EnsureBurstInitialized(go, sortingOrder, sortingLayerId);
+            burstPool.Release(go);
+        }
+
+        // Template was only used for Instantiate; remove it from the hierarchy.
+        Destroy(template);
+    }
+
+    private GameObject CreateBurstTemplate()
+    {
+        var go = new GameObject(
+            "StatParticleBurst",
+            typeof(RectTransform),
+            typeof(ParticleSystem),
+            typeof(PooledParticleBurst));
+        go.transform.SetParent(poolRoot, false);
+        return go;
+    }
+
+    private void EnsureBurstInitialized(GameObject go, int sortingOrder, int sortingLayerId)
+    {
+        var burst = go.GetComponent<PooledParticleBurst>();
+        if (burst == null)
+            burst = go.AddComponent<PooledParticleBurst>();
+        burst.Initialize(burstPool, particleMaterial, sortingOrder, sortingLayerId);
     }
 
     private RectTransform ResolveAnchor(StatType stat)
     {
-        RectTransform explicitAnchor = stat switch
+        switch (stat)
         {
-            StatType.Religion => religionAnchor,
-            StatType.People => peopleAnchor,
-            StatType.Army => armyAnchor,
-            StatType.Wealth => wealthAnchor,
-            _ => null
-        };
-
-        if (explicitAnchor != null)
-            return explicitAnchor;
+            case StatType.Religion:
+                if (religionAnchor != null) return religionAnchor;
+                break;
+            case StatType.People:
+                if (peopleAnchor != null) return peopleAnchor;
+                break;
+            case StatType.Army:
+                if (armyAnchor != null) return armyAnchor;
+                break;
+            case StatType.Wealth:
+                if (wealthAnchor != null) return wealthAnchor;
+                break;
+        }
 
         return uiManager != null ? uiManager.GetStatSliderRect(stat) : null;
     }
 
     private void SpawnBurst(RectTransform anchor, Color color, int count)
     {
-        GameObject host = new GameObject("StatParticleBurst", typeof(RectTransform), typeof(ParticleSystem));
-        host.transform.SetParent(anchor, false);
+        if (burstPool == null)
+            BuildPool();
 
-        RectTransform rect = host.GetComponent<RectTransform>();
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, 12f);
-        rect.sizeDelta = Vector2.zero;
+        int sortingOrder = 50;
+        int sortingLayerId = parentCanvas != null ? parentCanvas.sortingLayerID : 0;
 
-        ParticleSystem ps = host.GetComponent<ParticleSystem>();
-        var main = ps.main;
-        main.playOnAwake = false;
-        main.loop = false;
-        main.duration = lifetime;
-        main.startLifetime = lifetime;
-        main.startSpeed = speed;
-        main.startSize = 8f;
-        main.startColor = color;
-        main.simulationSpace = ParticleSystemSimulationSpace.Local;
-        main.maxParticles = count;
+        GameObject host = burstPool.Get();
+        EnsureBurstInitialized(host, sortingOrder, sortingLayerId);
 
-        var emission = ps.emission;
-        emission.rateOverTime = 0f;
-        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)count) });
-
-        var shape = ps.shape;
-        shape.enabled = true;
-        shape.shapeType = ParticleSystemShapeType.Circle;
-        shape.radius = burstRadius * 0.15f;
-
-        var colorOverLifetime = ps.colorOverLifetime;
-        colorOverLifetime.enabled = true;
-        Gradient gradient = new Gradient();
-        gradient.SetKeys(
-            new[] { new GradientColorKey(color, 0f), new GradientColorKey(color, 1f) },
-            new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
-        colorOverLifetime.color = gradient;
-
-        var renderer = host.GetComponent<ParticleSystemRenderer>();
-        renderer.sortingOrder = 50;
-        if (parentCanvas != null)
-            renderer.sortingLayerID = parentCanvas.sortingLayerID;
-
-        // UI-friendly material if available; otherwise default particle material.
-        if (renderer.sharedMaterial == null)
-            renderer.material = new Material(Shader.Find("Particles/Standard Unlit")
-                                            ?? Shader.Find("Universal Render Pipeline/Particles/Unlit")
-                                            ?? Shader.Find("Sprites/Default"));
-
-        ps.Play();
-        Destroy(host, lifetime + 0.15f);
+        var burst = host.GetComponent<PooledParticleBurst>();
+        burst.Play(
+            anchor,
+            BurstAnchoredOffset,
+            color,
+            count,
+            lifetime,
+            speed,
+            burstRadius * 0.15f);
     }
 }

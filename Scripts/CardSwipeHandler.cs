@@ -60,12 +60,15 @@ public class CardSwipeHandler : MonoBehaviour,
     private bool inputEnabled = true;
     private bool crossedDecisionThreshold;
     private bool deadzoneUnlocked;
+    private SwipeDirectionLock directionLock = SwipeDirectionLock.Both;
     private int activeFingerId = NoFinger;
     private float accumulatedScreenDeltaX;
     private float lastMouseScreenX;
     private Canvas parentCanvas;
     private float canvasScaleFactor = 1f;
     private Coroutine discardRoutine;
+    private Vector2 dragPositionScratch;
+    private Vector2 discardTargetScratch;
 
     /// <summary>Current normalized swipe value in [-1, 1].</summary>
     public float NormalizedSwipe { get; private set; }
@@ -190,6 +193,16 @@ public class CardSwipeHandler : MonoBehaviour,
         inputEnabled = enabled;
     }
 
+    /// <summary>
+    /// Locks commits to one direction (tutorial) or allows both.
+    /// </summary>
+    public void SetDirectionLock(SwipeDirectionLock lockMode)
+    {
+        directionLock = lockMode;
+    }
+
+    public SwipeDirectionLock DirectionLock => directionLock;
+
     public void OnPointerDown(PointerEventData eventData)
     {
         if (!inputEnabled || choiceCommitted || IsDiscarding)
@@ -290,9 +303,17 @@ public class CardSwipeHandler : MonoBehaviour,
 
     private void ApplyVisualDrag(float uiDeltaX)
     {
+        // Soft-clamp drag into the allowed tutorial direction.
+        if (directionLock == SwipeDirectionLock.RightOnly && uiDeltaX < 0f)
+            uiDeltaX = 0f;
+        else if (directionLock == SwipeDirectionLock.LeftOnly && uiDeltaX > 0f)
+            uiDeltaX = 0f;
+
         float clampedX = Mathf.Clamp(uiDeltaX, -maxDragDistance, maxDragDistance);
 
-        rectTransform.anchoredPosition = startAnchoredPosition + new Vector2(clampedX, 0f);
+        dragPositionScratch.x = startAnchoredPosition.x + clampedX;
+        dragPositionScratch.y = startAnchoredPosition.y;
+        rectTransform.anchoredPosition = dragPositionScratch;
         ApplyTiltFromDrag(clampedX);
 
         NormalizedSwipe = Mathf.Clamp(clampedX / swipeThreshold, -1f, 1f);
@@ -315,14 +336,32 @@ public class CardSwipeHandler : MonoBehaviour,
             : 0f;
         float uiDeltaX = visualScreenX / Mathf.Max(0.0001f, canvasScaleFactor);
 
+        // Enforce direction lock on commit.
+        if (directionLock == SwipeDirectionLock.RightOnly && uiDeltaX < 0f)
+            uiDeltaX = 0f;
+        else if (directionLock == SwipeDirectionLock.LeftOnly && uiDeltaX > 0f)
+            uiDeltaX = 0f;
+
         ClearFingerLock();
 
         if (uiDeltaX <= -swipeThreshold)
-            CommitSwipeLeft();
+        {
+            if (directionLock == SwipeDirectionLock.RightOnly)
+                ResetCardPosition();
+            else
+                CommitSwipeLeft();
+        }
         else if (uiDeltaX >= swipeThreshold)
-            CommitSwipeRight();
+        {
+            if (directionLock == SwipeDirectionLock.LeftOnly)
+                ResetCardPosition();
+            else
+                CommitSwipeRight();
+        }
         else
+        {
             ResetCardPosition();
+        }
     }
 
     private void ClearFingerLock()
@@ -419,7 +458,9 @@ public class CardSwipeHandler : MonoBehaviour,
 
         Vector2 from = rectTransform.anchoredPosition;
         float direction = toTheLeft ? -1f : 1f;
-        Vector2 to = startAnchoredPosition + new Vector2(direction * discardDistance, 0f);
+        discardTargetScratch.x = startAnchoredPosition.x + direction * discardDistance;
+        discardTargetScratch.y = startAnchoredPosition.y;
+        Vector2 to = discardTargetScratch;
         Quaternion fromRot = rectTransform.localRotation;
         Quaternion toRot = startLocalRotation * Quaternion.Euler(0f, 0f, -direction * maxTiltDegrees * 2f);
 

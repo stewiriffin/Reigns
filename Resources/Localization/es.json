@@ -7,6 +7,18 @@
     { "key": "ui.years_format", "value": "Año {0}" },
     { "key": "ui.longest_reign_format", "value": "Reinado más largo: {0}" },
 
+    { "key": "tutorial.swipe.scenario", "value": "Cada visitante te obliga a elegir. Arrastra la carta: los iconos sobre los medidores muestran qué cambiará. Desliza a la DERECHA para ver una ganancia." },
+    { "key": "tutorial.swipe.left", "value": "← (bloqueado)" },
+    { "key": "tutorial.swipe.right", "value": "Desliza a la derecha →" },
+
+    { "key": "tutorial.death.scenario", "value": "Mantén cada medidor lejos de los extremos. Si alguno llega a 0 o 100, tu reinado termina. Desliza a la IZQUIERDA para aceptar la advertencia." },
+    { "key": "tutorial.death.left", "value": "← Entendido" },
+    { "key": "tutorial.death.right", "value": "(bloqueado) →" },
+
+    { "key": "tutorial.begin.scenario", "value": "La corte te espera. Elige con libertad: de aquí en adelante, cada decisión forja tu reino." },
+    { "key": "tutorial.begin.left", "value": "Gobernar con gracia" },
+    { "key": "tutorial.begin.right", "value": "Gobernar con fuerza" },
+
     { "key": "card.plague.scenario", "value": "Una extraña enfermedad se extiende por la capital. El Sumo Sacerdote pide oraciones públicas; tus consejeros exigen cuarentena y dinero para los médicos." },
     { "key": "card.plague.left", "value": "Celebrar una oración en la ciudad" },
     { "key": "card.plague.right", "value": "Financiar a los médicos" },

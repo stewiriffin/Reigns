@@ -23,7 +23,9 @@ public static class MetaProgression
 
         PlayerPrefs.SetInt(FlagKey(flag), value ? 1 : 0);
         PlayerPrefs.Save();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"MetaProgression: '{flag}' = {value}");
+#endif
     }
 
     public static void ClearFlag(string flag)

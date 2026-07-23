@@ -75,6 +75,15 @@ public class UIManager : MonoBehaviour
     private Color leftChoiceBaseColor = Color.white;
     private Color rightChoiceBaseColor = Color.white;
 
+    // Cached once — avoids GetComponent during particle / HUD lookups on the resolve path.
+    private RectTransform religionSliderRect;
+    private RectTransform peopleSliderRect;
+    private RectTransform armySliderRect;
+    private RectTransform wealthSliderRect;
+
+    private int lastYearsRuled = int.MinValue;
+    private int lastLongestReign = int.MinValue;
+
     private void OnEnable()
     {
         LocalizationManager.OnLanguageChanged += HandleLanguageChanged;
@@ -98,10 +107,19 @@ public class UIManager : MonoBehaviour
         ConfigureSlider(armySlider);
         ConfigureSlider(wealthSlider);
 
+        CacheSliderRects();
         CacheChoiceColors();
         ClearSwipeFeedback();
         ClearStatusEffectIcons();
         HideGameOver();
+    }
+
+    private void CacheSliderRects()
+    {
+        religionSliderRect = religionSlider != null ? religionSlider.transform as RectTransform : null;
+        peopleSliderRect = peopleSlider != null ? peopleSlider.transform as RectTransform : null;
+        armySliderRect = armySlider != null ? armySlider.transform as RectTransform : null;
+        wealthSliderRect = wealthSlider != null ? wealthSlider.transform as RectTransform : null;
     }
 
     /// <summary>
@@ -151,13 +169,9 @@ public class UIManager : MonoBehaviour
     public void ShowGameOver(string deathMessage, int yearsRuled, int longestReign, bool secondChanceAvailable = true)
     {
         if (deathMessageText != null)
-            deathMessageText.text = deathMessage ?? string.Empty;
+            deathMessageText.SetText(deathMessage ?? string.Empty);
 
-        if (gameOverYearsText != null)
-        {
-            string yearWord = yearsRuled == 1 ? "year" : "years";
-            gameOverYearsText.text = $"You ruled for {yearsRuled} {yearWord}.\nLongest Reign: {longestReign}";
-        }
+        NoAllocText.SetGameOverYears(gameOverYearsText, yearsRuled, longestReign);
 
         SetSecondChanceAvailable(secondChanceAvailable);
 
@@ -179,16 +193,14 @@ public class UIManager : MonoBehaviour
     /// </summary>
     public RectTransform GetStatSliderRect(StatType stat)
     {
-        Slider slider = stat switch
+        switch (stat)
         {
-            StatType.Religion => religionSlider,
-            StatType.People => peopleSlider,
-            StatType.Army => armySlider,
-            StatType.Wealth => wealthSlider,
-            _ => null
-        };
-
-        return slider != null ? slider.GetComponent<RectTransform>() : null;
+            case StatType.Religion: return religionSliderRect;
+            case StatType.People: return peopleSliderRect;
+            case StatType.Army: return armySliderRect;
+            case StatType.Wealth: return wealthSliderRect;
+            default: return null;
+        }
     }
 
     /// <summary>
@@ -230,14 +242,15 @@ public class UIManager : MonoBehaviour
     {
         currentCard = card;
 
+        // Localized strings are table lookups (no per-call Format). SetText copies into TMP buffers.
         if (scenarioText != null)
-            scenarioText.text = card != null ? card.GetScenarioText() : string.Empty;
+            scenarioText.SetText(card != null ? card.GetScenarioText() : string.Empty);
 
         if (leftChoiceText != null)
-            leftChoiceText.text = card != null ? card.GetLeftChoiceText() : string.Empty;
+            leftChoiceText.SetText(card != null ? card.GetLeftChoiceText() : string.Empty);
 
         if (rightChoiceText != null)
-            rightChoiceText.text = card != null ? card.GetRightChoiceText() : string.Empty;
+            rightChoiceText.SetText(card != null ? card.GetRightChoiceText() : string.Empty);
 
         UpdatePortrait(card);
         ClearSwipeFeedback();
@@ -265,8 +278,11 @@ public class UIManager : MonoBehaviour
     /// </summary>
     public void UpdateYearsRuled(int yearsRuled)
     {
-        if (yearsRuledText != null)
-            yearsRuledText.text = string.Format(yearsRuledFormat, yearsRuled);
+        if (yearsRuledText == null || yearsRuled == lastYearsRuled)
+            return;
+
+        lastYearsRuled = yearsRuled;
+        NoAllocText.SetFormatted(yearsRuledText, yearsRuledFormat, yearsRuled);
     }
 
     /// <summary>
@@ -274,8 +290,11 @@ public class UIManager : MonoBehaviour
     /// </summary>
     public void UpdateLongestReign(int longestReign)
     {
-        if (longestReignText != null)
-            longestReignText.text = string.Format(longestReignFormat, longestReign);
+        if (longestReignText == null || longestReign == lastLongestReign)
+            return;
+
+        lastLongestReign = longestReign;
+        NoAllocText.SetFormatted(longestReignText, longestReignFormat, longestReign);
     }
 
     /// <summary>

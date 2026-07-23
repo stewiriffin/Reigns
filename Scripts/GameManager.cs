@@ -20,6 +20,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private CardVoicePlayer cardVoicePlayer;
     [SerializeField] private InventoryManager inventoryManager;
     [SerializeField] private SaveManager saveManager;
+    [SerializeField] private AchievementManager achievementManager;
 
     [Header("Deck")]
     [SerializeField] private string cardsResourcePath = "Cards/event_cards";
@@ -39,6 +40,8 @@ public class GameManager : MonoBehaviour
     private bool secondChanceUsedThisDeath;
     private bool gameOverSequenceRunning;
     private bool hasActiveRun;
+    private bool inTutorial;
+    private int tutorialStep;
     private string lastCardId;
     private string forcedNextCardId;
     private DeathCause pendingDeathCause = DeathCause.None;
@@ -81,6 +84,14 @@ public class GameManager : MonoBehaviour
 
         if (saveManager == null)
             saveManager = SaveManager.Instance != null ? SaveManager.Instance : FindObjectOfType<SaveManager>();
+
+        if (achievementManager == null)
+            achievementManager = AchievementManager.Instance != null
+                ? AchievementManager.Instance
+                : FindObjectOfType<AchievementManager>();
+
+        if (achievementManager == null)
+            achievementManager = new GameObject("AchievementManager").AddComponent<AchievementManager>();
 
         LongestReign = PlayerPrefs.GetInt(LongestReignPrefsKey, 0);
         deathMessages = DeathMessageLoader.Load(deathMessagesResourcePath);
@@ -192,6 +203,8 @@ public class GameManager : MonoBehaviour
         YearsRuled = 0;
         skipStatusTickOnce = true;
         hasActiveRun = false;
+        inTutorial = false;
+        tutorialStep = 0;
         statusEffects.Clear();
 
         if (inventoryManager != null)
@@ -203,6 +216,9 @@ public class GameManager : MonoBehaviour
             uiManager.ClearStatusEffectIcons();
         }
 
+        if (cardSwipe != null)
+            cardSwipe.SetDirectionLock(SwipeDirectionLock.Both);
+
         kingdomStats.ResetStats();
         RefreshStatHud(immediate: true);
         RefreshScoreHud();
@@ -211,7 +227,6 @@ public class GameManager : MonoBehaviour
             atmosphere.RefreshImmediate();
 
         LoadDeck();
-        RefillDrawPile();
 
         if (cardSwipe != null)
         {
@@ -219,11 +234,87 @@ public class GameManager : MonoBehaviour
             cardSwipe.SetInputEnabled(true);
         }
 
+        if (!TutorialCards.HasCompletedTutorial)
+        {
+            BeginTutorial();
+            return;
+        }
+
+        RefillDrawPile();
         ShowNextCard();
         hasActiveRun = currentCard != null;
 
         if (saveManager != null)
             saveManager.SaveGame();
+    }
+
+    private void BeginTutorial()
+    {
+        inTutorial = true;
+        tutorialStep = 0;
+        skipStatusTickOnce = true;
+        ShowTutorialStep(0);
+        hasActiveRun = true;
+
+        if (saveManager != null)
+            saveManager.SaveGame();
+    }
+
+    private void ShowTutorialStep(int step)
+    {
+        tutorialStep = step;
+        Card card = TutorialCards.Create(step);
+
+        if (cardSwipe != null)
+        {
+            cardSwipe.SetDirectionLock(TutorialCards.GetRequiredLock(step));
+            cardSwipe.PrepareForNextCard();
+            cardSwipe.SetInputEnabled(true);
+        }
+
+        DisplayCard(card);
+        isResolvingChoice = false;
+
+        if (uiManager != null)
+            uiManager.ClearSwipeFeedback();
+    }
+
+    private void AdvanceTutorialAfterChoice()
+    {
+        int next = tutorialStep + 1;
+        if (next >= 3)
+        {
+            CompleteTutorialAndStartMainLoop();
+            return;
+        }
+
+        ShowTutorialStep(next);
+    }
+
+    private void CompleteTutorialAndStartMainLoop()
+    {
+        inTutorial = false;
+        tutorialStep = 0;
+        TutorialCards.MarkTutorialCompleted();
+
+        if (cardSwipe != null)
+            cardSwipe.SetDirectionLock(SwipeDirectionLock.Both);
+
+        YearsRuled = 0;
+        RefreshScoreHud();
+        skipStatusTickOnce = true;
+        forcedNextCardId = null;
+
+        if (drawPile.Count == 0)
+            RefillDrawPile();
+
+        ShowNextCard();
+        hasActiveRun = currentCard != null;
+
+        if (saveManager != null)
+            saveManager.SaveGame();
+
+        Debug.Log("GameManager: Tutorial complete — entering main card pool.");
     }
 
     /// <summary>
@@ -519,6 +610,9 @@ public class GameManager : MonoBehaviour
 
         if (cardVoicePlayer != null)
             cardVoicePlayer.PlayCardVoice(card);
+
+        if (!inTutorial && achievementManager != null)
+            achievementManager.NotifyCardSeen(card);
     }
 
     private void HandleSwipeLeft()
@@ -590,8 +684,17 @@ public class GameManager : MonoBehaviour
         RefreshStatusEffectUi();
         EvaluateDangerShake(beforeReligion, beforePeople, beforeArmy, beforeWealth);
 
-        YearsRuled++;
-        RefreshScoreHud();
+        if (!inTutorial)
+        {
+            YearsRuled++;
+            RefreshScoreHud();
+
+            if (achievementManager != null)
+            {
+                achievementManager.NotifyYearsRuled(YearsRuled);
+                achievementManager.NotifyWealthMaxed(kingdomStats.Wealth);
+            }
+        }
 
         if (cardSwipe != null)
             cardSwipe.DiscardCard(isLeft, OnDiscardComplete);
@@ -601,7 +704,39 @@ public class GameManager : MonoBehaviour
 
     private void QueueForcedNextCard(string nextCardId)
     {
-        forcedNextCardId = string.IsNullOrWhiteSpace(nextCardId) ? null : nextCardId.Trim();
+        // Avoid Trim() allocation when IDs are already clean (normal JSON path).
+        if (string.IsNullOrEmpty(nextCardId) || IsWhitespaceOnly(nextCardId))
+        {
+            forcedNextCardId = null;
+            return;
+        }
+
+        if (ContainsWhitespace(nextCardId))
+            forcedNextCardId = nextCardId.Trim();
+        else
+            forcedNextCardId = nextCardId;
+    }
+
+    private static bool IsWhitespaceOnly(string value)
+    {
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (!char.IsWhiteSpace(value[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool ContainsWhitespace(string value)
+    {
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (char.IsWhiteSpace(value[i]))
+                return true;
+        }
+
+        return false;
     }
 
     private void OnDiscardComplete()
@@ -612,6 +747,12 @@ public class GameManager : MonoBehaviour
                 ? pendingDeathCause
                 : kingdomStats.LastDeathCause;
             BeginGameOverSequence(cause);
+            return;
+        }
+
+        if (inTutorial)
+        {
+            AdvanceTutorialAfterChoice();
             return;
         }
 
@@ -652,6 +793,9 @@ public class GameManager : MonoBehaviour
             saveManager.DeleteSave();
 
         TryUpdateHighScore();
+
+        if (achievementManager != null)
+            achievementManager.NotifyDeath(cause);
 
         bool showInterstitial = adManager != null && adManager.ShouldShowGameOverInterstitial();
         if (showInterstitial)

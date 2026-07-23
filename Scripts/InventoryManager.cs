@@ -1,10 +1,9 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Tracks held items, renders their icons, and consumes death-prevention items when needed.
+/// Tracks held items, renders their icons via an object pool, and consumes death-prevention items.
 /// </summary>
 public class InventoryManager : MonoBehaviour
 {
@@ -18,11 +17,17 @@ public class InventoryManager : MonoBehaviour
     [Tooltip("Prefab with an Image used to show each held item icon.")]
     [SerializeField] private GameObject itemIconPrefab;
 
+    [SerializeField] private int iconPoolPrewarm = 6;
+
     [SerializeField] private KingdomStats kingdomStats;
 
     private readonly List<Item> catalog = new List<Item>();
     private readonly List<Item> heldItems = new List<Item>();
     private readonly List<GameObject> iconInstances = new List<GameObject>();
+
+    private ObjectPool iconPool;
+    private Transform poolRoot;
+    private static readonly Vector2 DefaultIconSize = new Vector2(64f, 64f);
 
     public IReadOnlyList<Item> HeldItems => heldItems;
 
@@ -31,6 +36,7 @@ public class InventoryManager : MonoBehaviour
         if (kingdomStats == null)
             kingdomStats = FindObjectOfType<KingdomStats>();
 
+        EnsureIconPool();
         LoadCatalog();
     }
 
@@ -67,8 +73,8 @@ public class InventoryManager : MonoBehaviour
         if (itemIds == null)
             return;
 
-        foreach (string id in itemIds)
-            GrantItem(id);
+        for (int i = 0; i < itemIds.Length; i++)
+            GrantItem(itemIds[i]);
     }
 
     /// <summary>
@@ -82,13 +88,14 @@ public class InventoryManager : MonoBehaviour
         Item definition = ItemLoader.FindById(catalog, itemId);
         if (definition == null)
         {
-            Debug.LogWarning($"InventoryManager: Unknown item id '{itemId}'.");
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.LogWarning("InventoryManager: Unknown item id.");
+#endif
             return false;
         }
 
         heldItems.Add(definition.Clone());
         RebuildIcons();
-        Debug.Log($"InventoryManager: Granted item '{itemId}'.");
         return true;
     }
 
@@ -109,12 +116,10 @@ public class InventoryManager : MonoBehaviour
         if (index < 0)
             return false;
 
-        Item consumed = heldItems[index];
         heldItems.RemoveAt(index);
         RebuildIcons();
 
         kingdomStats.RestoreStatForDeathCause(cause);
-        Debug.Log($"InventoryManager: Consumed '{consumed.id}' to prevent {cause}. Stat restored to 50.");
         return true;
     }
 
@@ -140,43 +145,64 @@ public class InventoryManager : MonoBehaviour
         return -1;
     }
 
-    private void RebuildIcons()
+    private void EnsureIconPool()
     {
-        for (int i = 0; i < iconInstances.Count; i++)
-        {
-            if (iconInstances[i] != null)
-                Destroy(iconInstances[i]);
-        }
-
-        iconInstances.Clear();
+        if (iconPool != null)
+            return;
 
         if (inventoryBarRoot == null)
             return;
 
-        foreach (Item item in heldItems)
+        poolRoot = new GameObject("InventoryIconPool").transform;
+        poolRoot.SetParent(inventoryBarRoot, false);
+        poolRoot.localScale = Vector3.one;
+
+        GameObject template = itemIconPrefab;
+        bool destroyTemplate = false;
+        if (template == null)
         {
-            GameObject iconObject = CreateIconObject(item);
-            if (iconObject != null)
-                iconInstances.Add(iconObject);
+            template = new GameObject("ItemIconTemplate", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            template.transform.SetParent(poolRoot, false);
+            var rect = template.GetComponent<RectTransform>();
+            rect.sizeDelta = DefaultIconSize;
+            destroyTemplate = true;
+        }
+
+        iconPool = new ObjectPool(template, inventoryBarRoot, iconPoolPrewarm);
+
+        if (destroyTemplate)
+            Destroy(template);
+    }
+
+    private void RebuildIcons()
+    {
+        EnsureIconPool();
+
+        for (int i = 0; i < iconInstances.Count; i++)
+        {
+            if (iconInstances[i] != null && iconPool != null)
+                iconPool.Release(iconInstances[i]);
+        }
+
+        iconInstances.Clear();
+
+        if (inventoryBarRoot == null || iconPool == null)
+            return;
+
+        for (int i = 0; i < heldItems.Count; i++)
+        {
+            Item item = heldItems[i];
+            if (item == null)
+                continue;
+
+            GameObject iconObject = iconPool.Get();
+            BindIcon(iconObject, item);
+            iconInstances.Add(iconObject);
         }
     }
 
-    private GameObject CreateIconObject(Item item)
+    private static void BindIcon(GameObject instance, Item item)
     {
-        GameObject instance;
-        if (itemIconPrefab != null)
-        {
-            instance = Instantiate(itemIconPrefab, inventoryBarRoot);
-        }
-        else
-        {
-            instance = new GameObject(item.id + "_Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            instance.transform.SetParent(inventoryBarRoot, false);
-            var rect = instance.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(64f, 64f);
-        }
-
-        instance.name = $"Item_{item.id}";
         instance.SetActive(true);
 
         Image image = instance.GetComponent<Image>();
@@ -189,7 +215,5 @@ public class InventoryManager : MonoBehaviour
             image.enabled = item.icon != null;
             image.preserveAspect = true;
         }
-
-        return instance;
     }
 }

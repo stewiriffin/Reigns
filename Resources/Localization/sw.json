@@ -7,6 +7,18 @@
     { "key": "ui.years_format", "value": "Mwaka {0}" },
     { "key": "ui.longest_reign_format", "value": "Utawala Mrefu Zaidi: {0}" },
 
+    { "key": "tutorial.swipe.scenario", "value": "Kila mgeni anakulazimisha kuchagua. Buruta kadi — alama juu ya vipimo zinaonyesha kitakachobadilika. Telezesha kulia SASA kuona faida." },
+    { "key": "tutorial.swipe.left", "value": "← (imefungwa)" },
+    { "key": "tutorial.swipe.right", "value": "Telezesha kulia →" },
+
+    { "key": "tutorial.death.scenario", "value": "Weka kila kipimo mbali na kingo. Kikifika 0 au 100, utawala wako unaisha. Telezesha kushoto kukubali onyo hili." },
+    { "key": "tutorial.death.left", "value": "← Nimeelewa" },
+    { "key": "tutorial.death.right", "value": "(imefungwa) →" },
+
+    { "key": "tutorial.begin.scenario", "value": "Mahakama inakungoja. Chagua kwa uhuru — kuanzia sasa kila uamuzi unaunda ufalme wako." },
+    { "key": "tutorial.begin.left", "value": "Tawala kwa neema" },
+    { "key": "tutorial.begin.right", "value": "Tawala kwa nguvu" },
+
     { "key": "card.plague.scenario", "value": "Ugonjwa wa ajabu unaenea katika mji mkuu. Kuhani Mkuu anahimiza sala za umma; washauri wako wanadai karantini na fedha kwa madaktari." },
     { "key": "card.plague.left", "value": "Fanya sala katika mji mzima" },
     { "key": "card.plague.right", "value": "Fadhili madaktari" },

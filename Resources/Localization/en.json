@@ -7,6 +7,18 @@
     { "key": "ui.years_format", "value": "Year {0}" },
     { "key": "ui.longest_reign_format", "value": "Longest Reign: {0}" },
 
+    { "key": "tutorial.swipe.scenario", "value": "Every visitor asks you to choose. Drag the card — icons above the meters show what will change. Swipe RIGHT now to see a gain." },
+    { "key": "tutorial.swipe.left", "value": "← (locked)" },
+    { "key": "tutorial.swipe.right", "value": "Swipe right →" },
+
+    { "key": "tutorial.death.scenario", "value": "Keep every meter away from the edges. If any reaches 0 or 100, your reign ends. Swipe LEFT to acknowledge this warning." },
+    { "key": "tutorial.death.left", "value": "← I understand" },
+    { "key": "tutorial.death.right", "value": "(locked) →" },
+
+    { "key": "tutorial.begin.scenario", "value": "The court is waiting. Choose freely — from here on, every decision shapes your kingdom." },
+    { "key": "tutorial.begin.left", "value": "Rule with grace" },
+    { "key": "tutorial.begin.right", "value": "Rule with strength" },
+
     { "key": "card.plague.scenario", "value": "A strange illness spreads through the capital. The High Priest urges public prayer; your advisors demand quarantine and coin for physicians." },
     { "key": "card.plague.left", "value": "Hold a city-wide prayer" },
     { "key": "card.plague.right", "value": "Fund the physicians" },
