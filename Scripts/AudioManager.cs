@@ -42,6 +42,7 @@ public class AudioManager : MonoBehaviour
     private Coroutine crossfadeRoutine;
     private float bgmFadeMultiplier = 1f;
     private bool mutedForFullscreenAd;
+    private bool mutedForAppPause;
 
     private void Awake()
     {
@@ -201,8 +202,23 @@ public class AudioManager : MonoBehaviour
     public void SetMutedForFullscreenAd(bool muted)
     {
         mutedForFullscreenAd = muted;
+        ApplyMuteState();
+    }
+
+    /// <summary>
+    /// Mutes BGM when the app is backgrounded / phone call / OS pause.
+    /// </summary>
+    public void SetMutedForAppPause(bool muted)
+    {
+        mutedForAppPause = muted;
+        ApplyMuteState();
+    }
+
+    private void ApplyMuteState()
+    {
         ApplyVolumes();
 
+        bool muted = mutedForFullscreenAd || mutedForAppPause;
         if (activeBgmSource != null && activeBgmSource.isPlaying)
             activeBgmSource.volume = GetBgmOutputVolume() * bgmFadeMultiplier;
         if (idleBgmSource != null && idleBgmSource.isPlaying)
@@ -307,6 +323,7 @@ public class AudioManager : MonoBehaviour
         }
     }
 
-    private float GetBgmOutputVolume() => mutedForFullscreenAd ? 0f : masterVolume * bgmVolume;
+    private float GetBgmOutputVolume() =>
+        (mutedForFullscreenAd || mutedForAppPause) ? 0f : masterVolume * bgmVolume;
     private float GetSfxOutputVolume() => masterVolume * sfxVolume;
 }

@@ -69,6 +69,8 @@ public class CardSwipeHandler : MonoBehaviour,
     private Coroutine discardRoutine;
     private Vector2 dragPositionScratch;
     private Vector2 discardTargetScratch;
+    private CardUIJuice cardJuice;
+    private bool blockedShakeFiredThisDrag;
 
     /// <summary>Current normalized swipe value in [-1, 1].</summary>
     public float NormalizedSwipe { get; private set; }
@@ -86,6 +88,10 @@ public class CardSwipeHandler : MonoBehaviour,
         parentCanvas = GetComponentInParent<Canvas>();
         if (parentCanvas != null)
             canvasScaleFactor = parentCanvas.scaleFactor;
+
+        cardJuice = GetComponent<CardUIJuice>();
+        if (cardJuice == null)
+            cardJuice = gameObject.AddComponent<CardUIJuice>();
     }
 
     private void Update()
@@ -218,7 +224,12 @@ public class CardSwipeHandler : MonoBehaviour,
     public void OnBeginDrag(PointerEventData eventData)
     {
         if (!inputEnabled || choiceCommitted || IsDiscarding)
+        {
+            // Resolving / locked out — still give feedback if they try to swipe.
+            if (!inputEnabled && cardJuice != null)
+                cardJuice.PlayBlockedSwipeShake();
             return;
+        }
 
         if (isDragging)
         {
@@ -264,6 +275,7 @@ public class CardSwipeHandler : MonoBehaviour,
         isSnappingBack = false;
         crossedDecisionThreshold = false;
         deadzoneUnlocked = false;
+        blockedShakeFiredThisDrag = false;
         accumulatedScreenDeltaX = 0f;
         activeFingerId = eventData.pointerId;
         lastMouseScreenX = eventData.position.x;
@@ -303,11 +315,20 @@ public class CardSwipeHandler : MonoBehaviour,
 
     private void ApplyVisualDrag(float uiDeltaX)
     {
+        float attemptedDelta = uiDeltaX;
+
         // Soft-clamp drag into the allowed tutorial direction.
         if (directionLock == SwipeDirectionLock.RightOnly && uiDeltaX < 0f)
             uiDeltaX = 0f;
         else if (directionLock == SwipeDirectionLock.LeftOnly && uiDeltaX > 0f)
             uiDeltaX = 0f;
+
+        // Player tried a forbidden swipe direction — juice feedback once per drag.
+        if (!Mathf.Approximately(attemptedDelta, uiDeltaX) &&
+            Mathf.Abs(attemptedDelta) > swipeThreshold * 0.25f)
+        {
+            TryBlockedSwipeShake();
+        }
 
         float clampedX = Mathf.Clamp(uiDeltaX, -maxDragDistance, maxDragDistance);
 
@@ -319,6 +340,16 @@ public class CardSwipeHandler : MonoBehaviour,
         NormalizedSwipe = Mathf.Clamp(clampedX / swipeThreshold, -1f, 1f);
         UpdateDecisionThresholdHaptic(Mathf.Abs(clampedX));
         OnSwipeProgress?.Invoke(NormalizedSwipe);
+    }
+
+    private void TryBlockedSwipeShake()
+    {
+        if (blockedShakeFiredThisDrag)
+            return;
+
+        blockedShakeFiredThisDrag = true;
+        if (cardJuice != null)
+            cardJuice.PlayBlockedSwipeShake();
     }
 
     private void FinishDrag()
@@ -347,14 +378,20 @@ public class CardSwipeHandler : MonoBehaviour,
         if (uiDeltaX <= -swipeThreshold)
         {
             if (directionLock == SwipeDirectionLock.RightOnly)
+            {
+                TryBlockedSwipeShake();
                 ResetCardPosition();
+            }
             else
                 CommitSwipeLeft();
         }
         else if (uiDeltaX >= swipeThreshold)
         {
             if (directionLock == SwipeDirectionLock.LeftOnly)
+            {
+                TryBlockedSwipeShake();
                 ResetCardPosition();
+            }
             else
                 CommitSwipeRight();
         }
@@ -489,10 +526,17 @@ public class CardSwipeHandler : MonoBehaviour,
         crossedDecisionThreshold = false;
         IsDiscarding = false;
         inputEnabled = true;
+        blockedShakeFiredThisDrag = false;
         ClearFingerLock();
         NormalizedSwipe = 0f;
         rectTransform.anchoredPosition = startAnchoredPosition;
         rectTransform.localRotation = startLocalRotation;
         OnSwipeProgress?.Invoke(0f);
+
+        if (cardJuice != null)
+        {
+            cardJuice.CaptureRestPose();
+            cardJuice.PlayDrawAppear();
+        }
     }
 }

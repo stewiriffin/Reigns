@@ -1,0 +1,30 @@
+{
+  "baseDeck": [
+    {
+      "id": "remote_sample_harvest_festival",
+      "scenarioText": "The harvest festival needs a royal blessing.",
+      "prerequisiteFlag": "",
+      "portraitResourcePath": "Characters/Diplomat/portrait",
+      "voiceResourcePath": "Characters/Diplomat/voice",
+      "leftChoiceText": "Attend and feast",
+      "leftChoiceModifiers": {
+        "religion": 5,
+        "people": 15,
+        "army": 0,
+        "wealth": -10
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "Send a gift instead",
+      "rightChoiceModifiers": {
+        "religion": 0,
+        "people": 5,
+        "army": 0,
+        "wealth": -5
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": ""
+    }
+  ],
+  "unlockablePools": []
+}

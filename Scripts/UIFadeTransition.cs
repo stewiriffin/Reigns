@@ -43,6 +43,7 @@ public class UIFadeTransition : MonoBehaviour
         // Default boot: only start menu visible if assigned.
         if (startMenuGroup != null)
         {
+            CurrentScreen = ScreenId.StartMenu;
             SetGroupState(startMenuGroup, true, 1f);
             SetGroupState(gameplayGroup, false, 0f);
             SetGroupState(gameOverGroup, false, 0f);
@@ -79,6 +80,9 @@ public class UIFadeTransition : MonoBehaviour
         }
     }
 
+    /// <summary>Last screen shown via TransitionTo / SnapTo.</summary>
+    public ScreenId CurrentScreen { get; private set; } = ScreenId.StartMenu;
+
     private IEnumerator TransitionRoutine(ScreenId screen, Action onMidpoint, Action onComplete)
     {
         EnsureFullscreenFader();
@@ -101,6 +105,7 @@ public class UIFadeTransition : MonoBehaviour
 
     private void ShowOnly(ScreenId screen)
     {
+        CurrentScreen = screen;
         SetGroupState(startMenuGroup, screen == ScreenId.StartMenu, screen == ScreenId.StartMenu ? 1f : 0f);
         SetGroupState(gameplayGroup, screen == ScreenId.Gameplay, screen == ScreenId.Gameplay ? 1f : 0f);
         SetGroupState(gameOverGroup, screen == ScreenId.GameOver, screen == ScreenId.GameOver ? 1f : 0f);

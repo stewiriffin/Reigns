@@ -228,6 +228,137 @@ public static class CardLoader
         return null;
     }
 
+    /// <summary>
+    /// Appends remote base-deck cards and unlockable pools onto <paramref name="local"/>.
+    /// Cards whose <see cref="Card.id"/> already exists locally are skipped (local wins).
+    /// </summary>
+    public static CardDatabase MergeDatabases(CardDatabase local, CardDatabase remote)
+    {
+        if (local == null)
+            return remote ?? new CardDatabase { baseDeck = new Card[0], unlockablePools = new UnlockableCardPool[0] };
+        if (remote == null)
+            return local;
+
+        local.baseDeck ??= new Card[0];
+        local.unlockablePools ??= new UnlockableCardPool[0];
+        remote.baseDeck ??= new Card[0];
+        remote.unlockablePools ??= new UnlockableCardPool[0];
+
+        var knownIds = new HashSet<string>();
+        CollectIds(local, knownIds);
+
+        var mergedBase = new List<Card>(local.baseDeck);
+        for (int i = 0; i < remote.baseDeck.Length; i++)
+        {
+            Card card = remote.baseDeck[i];
+            if (card == null || string.IsNullOrWhiteSpace(card.id))
+                continue;
+            if (!knownIds.Add(card.id))
+                continue;
+            mergedBase.Add(card);
+        }
+
+        local.baseDeck = mergedBase.ToArray();
+
+        var mergedPools = new List<UnlockableCardPool>(local.unlockablePools);
+        for (int p = 0; p < remote.unlockablePools.Length; p++)
+        {
+            UnlockableCardPool remotePool = remote.unlockablePools[p];
+            if (remotePool == null)
+                continue;
+
+            UnlockableCardPool target = FindPool(mergedPools, remotePool.id);
+            if (target == null)
+            {
+                // New pool — copy only cards with unique ids.
+                var poolCards = new List<Card>();
+                if (remotePool.cards != null)
+                {
+                    for (int c = 0; c < remotePool.cards.Length; c++)
+                    {
+                        Card card = remotePool.cards[c];
+                        if (card == null || string.IsNullOrWhiteSpace(card.id))
+                            continue;
+                        if (!knownIds.Add(card.id))
+                            continue;
+                        poolCards.Add(card);
+                    }
+                }
+
+                mergedPools.Add(new UnlockableCardPool
+                {
+                    id = remotePool.id ?? string.Empty,
+                    cards = poolCards.ToArray()
+                });
+            }
+            else
+            {
+                var poolCards = new List<Card>(target.cards ?? new Card[0]);
+                if (remotePool.cards != null)
+                {
+                    for (int c = 0; c < remotePool.cards.Length; c++)
+                    {
+                        Card card = remotePool.cards[c];
+                        if (card == null || string.IsNullOrWhiteSpace(card.id))
+                            continue;
+                        if (!knownIds.Add(card.id))
+                            continue;
+                        poolCards.Add(card);
+                    }
+                }
+
+                target.cards = poolCards.ToArray();
+            }
+        }
+
+        local.unlockablePools = mergedPools.ToArray();
+        return local;
+    }
+
+    private static void CollectIds(CardDatabase database, HashSet<string> knownIds)
+    {
+        if (database.baseDeck != null)
+        {
+            for (int i = 0; i < database.baseDeck.Length; i++)
+            {
+                Card card = database.baseDeck[i];
+                if (card != null && !string.IsNullOrWhiteSpace(card.id))
+                    knownIds.Add(card.id);
+            }
+        }
+
+        if (database.unlockablePools == null)
+            return;
+
+        for (int p = 0; p < database.unlockablePools.Length; p++)
+        {
+            UnlockableCardPool pool = database.unlockablePools[p];
+            if (pool?.cards == null)
+                continue;
+
+            for (int c = 0; c < pool.cards.Length; c++)
+            {
+                Card card = pool.cards[c];
+                if (card != null && !string.IsNullOrWhiteSpace(card.id))
+                    knownIds.Add(card.id);
+            }
+        }
+    }
+
+    private static UnlockableCardPool FindPool(List<UnlockableCardPool> pools, string id)
+    {
+        if (string.IsNullOrEmpty(id))
+            return null;
+
+        for (int i = 0; i < pools.Count; i++)
+        {
+            if (pools[i] != null && pools[i].id == id)
+                return pools[i];
+        }
+
+        return null;
+    }
+
     private static List<Card> DeduplicateById(List<Card> cards)
     {
         var seen = new HashSet<string>();

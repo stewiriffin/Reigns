@@ -2,6 +2,9 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+#if DOTWEEN
+using DG.Tweening;
+#endif
 
 /// <summary>
 /// Bridges kingdom / card logic to on-screen UI:
@@ -11,7 +14,7 @@ public class UIManager : MonoBehaviour
 {
     private const float StatMin = 0f;
     private const float StatMax = 100f;
-    private const float DefaultLerpDuration = 0.5f;
+    private const float DefaultLerpDuration = 0.4f;
 
     /// <summary>Normalized swipe magnitude at which choice hints / indicators appear.</summary>
     public const float HintRevealNormalized = 0.3f;
@@ -75,6 +78,13 @@ public class UIManager : MonoBehaviour
     private Card currentCard;
     private Color leftChoiceBaseColor = Color.white;
     private Color rightChoiceBaseColor = Color.white;
+
+#if DOTWEEN
+    private Tween religionTween;
+    private Tween peopleTween;
+    private Tween armyTween;
+    private Tween wealthTween;
+#endif
 
     // Cached once — avoids GetComponent during particle / HUD lookups on the resolve path.
     private RectTransform religionSliderRect;
@@ -256,18 +266,28 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Smoothly lerps all four stat sliders to the given values over 0.5 seconds.
+    /// Smoothly lerps all four stat sliders to the given values over 0.4 seconds (DOTween when available).
     /// </summary>
     public void UpdateStatSliders(int religion, int people, int army, int wealth)
     {
+        float r = ClampStat(religion);
+        float p = ClampStat(people);
+        float a = ClampStat(army);
+        float w = ClampStat(wealth);
+        float duration = Mathf.Max(0.01f, sliderLerpDuration);
+
+#if DOTWEEN
+        KillSliderTweens();
+        religionTween = TweenSlider(religionSlider, r, duration);
+        peopleTween = TweenSlider(peopleSlider, p, duration);
+        armyTween = TweenSlider(armySlider, a, duration);
+        wealthTween = TweenSlider(wealthSlider, w, duration);
+#else
         if (sliderLerpRoutine != null)
             StopCoroutine(sliderLerpRoutine);
 
-        sliderLerpRoutine = StartCoroutine(LerpStatSliders(
-            ClampStat(religion),
-            ClampStat(people),
-            ClampStat(army),
-            ClampStat(wealth)));
+        sliderLerpRoutine = StartCoroutine(LerpStatSliders(r, p, a, w));
+#endif
     }
 
     /// <summary>
@@ -275,11 +295,15 @@ public class UIManager : MonoBehaviour
     /// </summary>
     public void SetStatSlidersImmediate(int religion, int people, int army, int wealth)
     {
+#if DOTWEEN
+        KillSliderTweens();
+#else
         if (sliderLerpRoutine != null)
         {
             StopCoroutine(sliderLerpRoutine);
             sliderLerpRoutine = null;
         }
+#endif
 
         SetSliderValue(religionSlider, ClampStat(religion));
         SetSliderValue(peopleSlider, ClampStat(people));
@@ -500,6 +524,38 @@ public class UIManager : MonoBehaviour
 
         sliderLerpRoutine = null;
     }
+
+#if DOTWEEN
+    private static Tween TweenSlider(Slider slider, float target, float duration)
+    {
+        if (slider == null)
+            return null;
+
+        return slider
+            .DOValue(target, duration)
+            .SetEase(Ease.OutQuad)
+            .SetUpdate(true);
+    }
+
+    private void KillSliderTweens()
+    {
+        religionTween?.Kill();
+        peopleTween?.Kill();
+        armyTween?.Kill();
+        wealthTween?.Kill();
+        religionTween = peopleTween = armyTween = wealthTween = null;
+
+        if (religionSlider != null) religionSlider.DOKill();
+        if (peopleSlider != null) peopleSlider.DOKill();
+        if (armySlider != null) armySlider.DOKill();
+        if (wealthSlider != null) wealthSlider.DOKill();
+    }
+
+    private void OnDestroy()
+    {
+        KillSliderTweens();
+    }
+#endif
 
     private static void ConfigureSlider(Slider slider)
     {

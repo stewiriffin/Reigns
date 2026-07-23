@@ -23,6 +23,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private AchievementManager achievementManager;
     [SerializeField] private AnalyticsManager analyticsManager;
     [SerializeField] private PlayServicesManager playServicesManager;
+    [SerializeField] private NetworkManager networkManager;
 
     [Header("Deck")]
     [SerializeField] private string cardsResourcePath = "Cards/event_cards";
@@ -114,8 +115,19 @@ public class GameManager : MonoBehaviour
         if (playServicesManager == null)
             playServicesManager = new GameObject("PlayServicesManager").AddComponent<PlayServicesManager>();
 
+        if (networkManager == null)
+            networkManager = NetworkManager.Instance != null
+                ? NetworkManager.Instance
+                : FindObjectOfType<NetworkManager>();
+
+        if (networkManager == null)
+            networkManager = new GameObject("NetworkManager").AddComponent<NetworkManager>();
+
         if (FindObjectOfType<SettingsMenu>() == null)
             new GameObject("SettingsMenu").AddComponent<SettingsMenu>();
+
+        if (FindObjectOfType<AndroidSystemHandler>() == null)
+            new GameObject("AndroidSystemHandler").AddComponent<AndroidSystemHandler>();
 
         LongestReign = PlayerPrefs.GetInt(LongestReignPrefsKey, 0);
         deathMessages = DeathMessageLoader.Load(deathMessagesResourcePath);
@@ -149,6 +161,9 @@ public class GameManager : MonoBehaviour
 
         if (adManager != null)
             adManager.OnRewardedAvailabilityChanged += HandleRewardedAvailabilityChanged;
+
+        if (networkManager != null)
+            networkManager.OnRemoteCardsReady += HandleRemoteCardsReady;
     }
 
     private void OnDisable()
@@ -165,6 +180,9 @@ public class GameManager : MonoBehaviour
 
         if (adManager != null)
             adManager.OnRewardedAvailabilityChanged -= HandleRewardedAvailabilityChanged;
+
+        if (networkManager != null)
+            networkManager.OnRemoteCardsReady -= HandleRemoteCardsReady;
     }
 
     private void Start()
@@ -476,12 +494,17 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Loads the base deck, then injects unlockable-pool cards whose prerequisite flags are set.
-    /// Also builds a full catalog so chained NextCardID lookups can resolve any card by ID.
+    /// Loads the base deck (Resources), merges any remote cards from NetworkManager,
+    /// then builds catalog + active draw deck.
     /// </summary>
     private void LoadDeck()
     {
-        CardDatabase database = CardLoader.LoadDatabase(cardsResourcePath);
+        CardDatabase database;
+        if (networkManager != null)
+            database = networkManager.LoadMergedDatabase(cardsResourcePath);
+        else
+            database = CardLoader.LoadDatabase(cardsResourcePath);
+
         CardLoader.ResolveAllAssets(database);
 
         cardCatalog.Clear();
@@ -494,6 +517,52 @@ public class GameManager : MonoBehaviour
             Debug.LogError("GameManager: Active deck is empty. Check Resources path and JSON.");
         else
             Debug.Log($"GameManager: Active deck built with {deck.Count} card(s). Catalog={cardCatalog.Count}.");
+    }
+
+    /// <summary>
+    /// When remote JSON arrives mid-session, refresh the pool without interrupting the current card.
+    /// New cards enter on the next draw-pile refill / new game.
+    /// </summary>
+    private void HandleRemoteCardsReady(bool success)
+    {
+        if (!success || networkManager == null || !networkManager.HasRemoteCards)
+            return;
+
+        string keepCardId = currentCard != null ? currentCard.id : null;
+        LoadDeck();
+
+        // Keep the on-screen card reference valid after catalog rebuild.
+        if (!string.IsNullOrEmpty(keepCardId))
+        {
+            Card refreshed = CardLoader.FindById(cardCatalog, keepCardId);
+            if (refreshed != null)
+                currentCard = refreshed;
+        }
+
+        // Inject any brand-new cards into the remaining draw pile.
+        if (drawPile != null && deck.Count > 0)
+        {
+            var inPile = new HashSet<string>();
+            for (int i = 0; i < drawPile.Count; i++)
+            {
+                if (drawPile[i] != null && !string.IsNullOrEmpty(drawPile[i].id))
+                    inPile.Add(drawPile[i].id);
+            }
+
+            for (int i = 0; i < deck.Count; i++)
+            {
+                Card card = deck[i];
+                if (card == null || string.IsNullOrEmpty(card.id))
+                    continue;
+                if (inPile.Contains(card.id))
+                    continue;
+                if (keepCardId != null && card.id == keepCardId)
+                    continue;
+                drawPile.Add(card);
+            }
+        }
+
+        Debug.Log("GameManager: Remote cards merged into deck pool.");
     }
 
     private void RefillDrawPile()

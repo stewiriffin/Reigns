@@ -47,6 +47,8 @@ public class SettingsMenu : MonoBehaviour
             settingsPanel.SetActive(false);
     }
 
+    public bool IsOpen => settingsPanel != null && settingsPanel.activeSelf;
+
     public void Toggle()
     {
         if (settingsPanel != null && settingsPanel.activeSelf)
