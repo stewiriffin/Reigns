@@ -5,19 +5,25 @@ using UnityEngine.Events;
 using UnityEngine.EventSystems;
 
 /// <summary>
-/// Detects left/right swipes on a card UI element via touch or mouse drag.
-/// Fires callbacks when the card crosses a horizontal threshold; otherwise snaps back.
+/// Android-optimized card swipe: primary-finger only, touch deadzone, and Input.GetTouch deltas.
+/// Mouse input remains supported for Editor play mode.
 /// </summary>
 [RequireComponent(typeof(RectTransform))]
 public class CardSwipeHandler : MonoBehaviour,
-    IBeginDragHandler, IDragHandler, IEndDragHandler
+    IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerDownHandler, IPointerUpHandler
 {
+    private const int MousePointerId = -1;
+    private const int NoFinger = int.MinValue;
+
     [Header("Swipe")]
     [Tooltip("Horizontal distance (in UI units) required to confirm a swipe.")]
     [SerializeField] private float swipeThreshold = 200f;
 
     [Tooltip("Max horizontal travel while dragging (clamps the card).")]
     [SerializeField] private float maxDragDistance = 350f;
+
+    [Tooltip("Screen-pixel deadzone before the card starts moving (resting-thumb filter).")]
+    [SerializeField] private float touchDeadzonePixels = 20f;
 
     [Tooltip("Degrees of Z rotation at full swipe threshold (tilts with drag direction).")]
     [SerializeField] private float maxTiltDegrees = 15f;
@@ -48,12 +54,15 @@ public class CardSwipeHandler : MonoBehaviour,
     private RectTransform rectTransform;
     private Vector2 startAnchoredPosition;
     private Quaternion startLocalRotation;
-    private Vector2 dragStartScreenPos;
     private bool isDragging;
     private bool isSnappingBack;
     private bool choiceCommitted;
     private bool inputEnabled = true;
     private bool crossedDecisionThreshold;
+    private bool deadzoneUnlocked;
+    private int activeFingerId = NoFinger;
+    private float accumulatedScreenDeltaX;
+    private float lastMouseScreenX;
     private Canvas parentCanvas;
     private float canvasScaleFactor = 1f;
     private Coroutine discardRoutine;
@@ -78,9 +87,26 @@ public class CardSwipeHandler : MonoBehaviour,
 
     private void Update()
     {
-        if (!isSnappingBack)
+        if (isSnappingBack)
+            UpdateSnapBack();
+
+        if (!isDragging || choiceCommitted || IsDiscarding)
             return;
 
+        // Prefer native touch deltas for the locked primary finger.
+        if (activeFingerId != MousePointerId && activeFingerId != NoFinger)
+        {
+            UpdateFromPrimaryTouch();
+            return;
+        }
+
+        // Editor / mouse fallback.
+        if (activeFingerId == MousePointerId)
+            UpdateFromMouse();
+    }
+
+    private void UpdateSnapBack()
+    {
         rectTransform.anchoredPosition = Vector2.Lerp(
             rectTransform.anchoredPosition,
             startAnchoredPosition,
@@ -101,9 +127,79 @@ public class CardSwipeHandler : MonoBehaviour,
         }
     }
 
+    /// <summary>
+    /// Tracks only the active finger via Input.GetTouch. Extra fingers are ignored.
+    /// </summary>
+    private void UpdateFromPrimaryTouch()
+    {
+        if (!TryGetActiveTouch(out Touch touch))
+        {
+            // Primary finger vanished without an end event — cancel cleanly.
+            FinishDrag();
+            return;
+        }
+
+        switch (touch.phase)
+        {
+            case TouchPhase.Moved:
+            case TouchPhase.Stationary:
+                // deltaPosition is hardware touch movement since last frame (Android-friendly).
+                ApplyScreenDelta(touch.deltaPosition.x);
+                break;
+
+            case TouchPhase.Ended:
+            case TouchPhase.Canceled:
+                FinishDrag();
+                break;
+        }
+    }
+
+    private void UpdateFromMouse()
+    {
+        if (!Input.GetMouseButton(0))
+        {
+            FinishDrag();
+            return;
+        }
+
+        float mouseX = Input.mousePosition.x;
+        ApplyScreenDelta(mouseX - lastMouseScreenX);
+        lastMouseScreenX = mouseX;
+    }
+
+    private bool TryGetActiveTouch(out Touch touch)
+    {
+        touch = default;
+
+        // Secondary fingers may exist (touchCount > 1); we still only resolve our fingerId.
+        for (int i = 0; i < Input.touchCount; i++)
+        {
+            Touch candidate = Input.GetTouch(i);
+            if (candidate.fingerId == activeFingerId)
+            {
+                touch = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public void SetInputEnabled(bool enabled)
     {
         inputEnabled = enabled;
+    }
+
+    public void OnPointerDown(PointerEventData eventData)
+    {
+        if (!inputEnabled || choiceCommitted || IsDiscarding)
+            return;
+
+        // Already locked to the first finger — ignore additional contacts.
+        if (isDragging)
+            return;
+
+        BeginTracking(eventData);
     }
 
     public void OnBeginDrag(PointerEventData eventData)
@@ -111,19 +207,90 @@ public class CardSwipeHandler : MonoBehaviour,
         if (!inputEnabled || choiceCommitted || IsDiscarding)
             return;
 
-        isDragging = true;
-        isSnappingBack = false;
-        crossedDecisionThreshold = false;
-        dragStartScreenPos = eventData.position;
+        if (isDragging)
+        {
+            // Multi-touch: reject any drag that isn't the primary finger.
+            if (eventData.pointerId != activeFingerId)
+                return;
+            return;
+        }
+
+        BeginTracking(eventData);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        if (!isDragging || choiceCommitted || IsDiscarding)
+        // Movement is driven by Input.GetTouch / mouse in Update.
+        // Still gate EventSystem callbacks so secondary pointers do nothing.
+        if (!isDragging || eventData.pointerId != activeFingerId)
+            return;
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        if (!isDragging || eventData.pointerId != activeFingerId)
             return;
 
-        float deltaX = (eventData.position.x - dragStartScreenPos.x) / canvasScaleFactor;
-        float clampedX = Mathf.Clamp(deltaX, -maxDragDistance, maxDragDistance);
+        // Touch path usually ends in Update; this covers mouse / EventSystem end.
+        if (activeFingerId == MousePointerId)
+            FinishDrag();
+    }
+
+    public void OnPointerUp(PointerEventData eventData)
+    {
+        if (!isDragging || eventData.pointerId != activeFingerId)
+            return;
+
+        if (activeFingerId == MousePointerId)
+            FinishDrag();
+    }
+
+    private void BeginTracking(PointerEventData eventData)
+    {
+        isDragging = true;
+        isSnappingBack = false;
+        crossedDecisionThreshold = false;
+        deadzoneUnlocked = false;
+        accumulatedScreenDeltaX = 0f;
+        activeFingerId = eventData.pointerId;
+        lastMouseScreenX = eventData.position.x;
+
+        ApplyVisualDrag(0f);
+    }
+
+    /// <summary>
+    /// Accumulates horizontal screen-pixel movement, applies deadzone, then moves the card.
+    /// </summary>
+    private void ApplyScreenDelta(float deltaScreenX)
+    {
+        if (Mathf.Abs(deltaScreenX) < 0.01f)
+            return;
+
+        accumulatedScreenDeltaX += deltaScreenX;
+
+        float visualScreenX = ApplyDeadzone(accumulatedScreenDeltaX);
+        float uiDeltaX = visualScreenX / Mathf.Max(0.0001f, canvasScaleFactor);
+        ApplyVisualDrag(uiDeltaX);
+    }
+
+    private float ApplyDeadzone(float accumulatedScreenX)
+    {
+        float abs = Mathf.Abs(accumulatedScreenX);
+        if (!deadzoneUnlocked)
+        {
+            if (abs < touchDeadzonePixels)
+                return 0f;
+
+            deadzoneUnlocked = true;
+        }
+
+        // Keep a deadzone offset so unlocking doesn't pop the card by 20px.
+        return accumulatedScreenX - Mathf.Sign(accumulatedScreenX) * touchDeadzonePixels;
+    }
+
+    private void ApplyVisualDrag(float uiDeltaX)
+    {
+        float clampedX = Mathf.Clamp(uiDeltaX, -maxDragDistance, maxDragDistance);
 
         rectTransform.anchoredPosition = startAnchoredPosition + new Vector2(clampedX, 0f);
         ApplyTiltFromDrag(clampedX);
@@ -133,10 +300,38 @@ public class CardSwipeHandler : MonoBehaviour,
         OnSwipeProgress?.Invoke(NormalizedSwipe);
     }
 
-    /// <summary>
-    /// Fires a light haptic once when the drag first crosses the commit threshold.
-    /// Resets if the player pulls back inside the threshold.
-    /// </summary>
+    private void FinishDrag()
+    {
+        if (!isDragging || choiceCommitted || IsDiscarding)
+        {
+            ClearFingerLock();
+            return;
+        }
+
+        isDragging = false;
+
+        float visualScreenX = deadzoneUnlocked
+            ? accumulatedScreenDeltaX - Mathf.Sign(accumulatedScreenDeltaX) * touchDeadzonePixels
+            : 0f;
+        float uiDeltaX = visualScreenX / Mathf.Max(0.0001f, canvasScaleFactor);
+
+        ClearFingerLock();
+
+        if (uiDeltaX <= -swipeThreshold)
+            CommitSwipeLeft();
+        else if (uiDeltaX >= swipeThreshold)
+            CommitSwipeRight();
+        else
+            ResetCardPosition();
+    }
+
+    private void ClearFingerLock()
+    {
+        activeFingerId = NoFinger;
+        accumulatedScreenDeltaX = 0f;
+        deadzoneUnlocked = false;
+    }
+
     private void UpdateDecisionThresholdHaptic(float absDeltaX)
     {
         bool pastThreshold = absDeltaX >= swipeThreshold;
@@ -152,73 +347,42 @@ public class CardSwipeHandler : MonoBehaviour,
         }
     }
 
-    public void OnEndDrag(PointerEventData eventData)
-    {
-        if (!isDragging || choiceCommitted || IsDiscarding)
-            return;
-
-        isDragging = false;
-
-        float deltaX = (eventData.position.x - dragStartScreenPos.x) / canvasScaleFactor;
-
-        if (deltaX <= -swipeThreshold)
-        {
-            CommitSwipeLeft();
-        }
-        else if (deltaX >= swipeThreshold)
-        {
-            CommitSwipeRight();
-        }
-        else
-        {
-            ResetCardPosition();
-        }
-    }
-
-    /// <summary>
-    /// Confirms a left swipe and invokes listeners.
-    /// </summary>
     public void CommitSwipeLeft()
     {
         if (choiceCommitted)
             return;
 
         choiceCommitted = true;
+        isDragging = false;
+        ClearFingerLock();
         NormalizedSwipe = -1f;
         OnSwipeProgress?.Invoke(NormalizedSwipe);
         OnSwipeLeft?.Invoke();
         onSwipeLeft?.Invoke();
     }
 
-    /// <summary>
-    /// Confirms a right swipe and invokes listeners.
-    /// </summary>
     public void CommitSwipeRight()
     {
         if (choiceCommitted)
             return;
 
         choiceCommitted = true;
+        isDragging = false;
+        ClearFingerLock();
         NormalizedSwipe = 1f;
         OnSwipeProgress?.Invoke(NormalizedSwipe);
         OnSwipeRight?.Invoke();
         onSwipeRight?.Invoke();
     }
 
-    /// <summary>
-    /// Smoothly returns the card to its resting position and clears progress.
-    /// </summary>
     public void ResetCardPosition()
     {
         isDragging = false;
         isSnappingBack = true;
         choiceCommitted = false;
+        ClearFingerLock();
     }
 
-    /// <summary>
-    /// Tilts the card in the drag direction. Primary tilt maps to the swipe threshold;
-    /// a lighter secondary tilt continues toward max drag distance.
-    /// </summary>
     private void ApplyTiltFromDrag(float clampedDeltaX)
     {
         float threshold = Mathf.Max(1f, swipeThreshold);
@@ -233,14 +397,9 @@ public class CardSwipeHandler : MonoBehaviour,
 
         float tiltNormalized = Mathf.Clamp(primary + remainder, -1f - overdragTiltScale, 1f + overdragTiltScale);
         float tiltDegrees = tiltNormalized * maxTiltDegrees;
-
-        // Positive X (right) → clockwise Z so the card leans into the swipe.
         rectTransform.localRotation = startLocalRotation * Quaternion.Euler(0f, 0f, -tiltDegrees);
     }
 
-    /// <summary>
-    /// Flies the card off-screen in the swipe direction, then resets it for reuse.
-    /// </summary>
     public Coroutine DiscardCard(bool toTheLeft, Action onComplete = null)
     {
         if (discardRoutine != null)
@@ -256,6 +415,7 @@ public class CardSwipeHandler : MonoBehaviour,
         isDragging = false;
         isSnappingBack = false;
         inputEnabled = false;
+        ClearFingerLock();
 
         Vector2 from = rectTransform.anchoredPosition;
         float direction = toTheLeft ? -1f : 1f;
@@ -280,9 +440,6 @@ public class CardSwipeHandler : MonoBehaviour,
         onComplete?.Invoke();
     }
 
-    /// <summary>
-    /// Instantly restores the card and allows a new swipe (e.g. after loading the next event).
-    /// </summary>
     public void PrepareForNextCard()
     {
         isDragging = false;
@@ -291,6 +448,7 @@ public class CardSwipeHandler : MonoBehaviour,
         crossedDecisionThreshold = false;
         IsDiscarding = false;
         inputEnabled = true;
+        ClearFingerLock();
         NormalizedSwipe = 0f;
         rectTransform.anchoredPosition = startAnchoredPosition;
         rectTransform.localRotation = startLocalRotation;
