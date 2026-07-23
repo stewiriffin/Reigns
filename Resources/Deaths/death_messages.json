@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "cause": "ReligionEmpty",
+      "message": "The temples stand silent. Without faith, your subjects no longer believe you are chosen to rule."
+    },
+    {
+      "cause": "ReligionFull",
+      "message": "The clergy proclaim you a prophet. Within a season, they govern the realm from the pulpit."
+    },
+    {
+      "cause": "PeopleEmpty",
+      "message": "Starvation and rage empty the streets — then fill them with rebels. Your reign ends at the scaffold."
+    },
+    {
+      "cause": "PeopleFull",
+      "message": "Loved to excess, the crowd elevates a champion of their own and casts you aside."
+    },
+    {
+      "cause": "ArmyEmpty",
+      "message": "Your banners fall. With no army to defend the borders, foreign spears take the capital."
+    },
+    {
+      "cause": "ArmyFull",
+      "message": "The army staged a military coup."
+    },
+    {
+      "cause": "WealthEmpty",
+      "message": "The vaults are bare. Debts come due, allies vanish, and the crown is sold for coin."
+    },
+    {
+      "cause": "WealthFull",
+      "message": "So much gold gathers that the merchant houses buy every loyalty — including yours."
+    }
+  ]
+}

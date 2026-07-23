@@ -1,0 +1,184 @@
+{
+  "baseDeck": [
+    {
+      "id": "plague_in_the_capital",
+      "scenarioText": "A strange illness spreads through the capital. The High Priest urges public prayer; your advisors demand quarantine and coin for physicians.",
+      "prerequisiteFlag": "",
+      "leftChoiceText": "Hold a city-wide prayer",
+      "leftChoiceModifiers": {
+        "religion": 15,
+        "people": -10,
+        "army": 0,
+        "wealth": -5
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "Fund the physicians",
+      "rightChoiceModifiers": {
+        "religion": -10,
+        "people": 10,
+        "army": 0,
+        "wealth": -15
+      },
+      "rightChoiceStatusEffects": [
+        {
+          "targetStat": "People",
+          "valuePerTurn": 3,
+          "duration": 3
+        }
+      ],
+      "rightChoiceUnlockFlag": ""
+    },
+    {
+      "id": "border_raiders",
+      "scenarioText": "Raiders burn villages along the eastern border. Generals demand a full campaign; merchants beg you to buy the raiders off instead.",
+      "prerequisiteFlag": "",
+      "leftChoiceText": "March the army east",
+      "leftChoiceModifiers": {
+        "religion": 0,
+        "people": 5,
+        "army": -15,
+        "wealth": -10
+      },
+      "leftChoiceStatusEffects": [
+        {
+          "targetStat": "Army",
+          "valuePerTurn": -5,
+          "duration": 2
+        }
+      ],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "Pay them tribute",
+      "rightChoiceModifiers": {
+        "religion": -5,
+        "people": -10,
+        "army": 5,
+        "wealth": -20
+      },
+      "rightChoiceStatusEffects": [
+        {
+          "targetStat": "Wealth",
+          "valuePerTurn": -4,
+          "duration": 3
+        }
+      ],
+      "rightChoiceUnlockFlag": ""
+    },
+    {
+      "id": "royal_wedding",
+      "scenarioText": "A neighboring kingdom offers a marriage alliance. The Church calls it a blessing; the treasury warns the feast will empty the coffers.",
+      "prerequisiteFlag": "",
+      "leftChoiceText": "Accept and celebrate grandly",
+      "leftChoiceModifiers": {
+        "religion": 10,
+        "people": 15,
+        "army": 5,
+        "wealth": -20
+      },
+      "leftChoiceStatusEffects": [
+        {
+          "targetStat": "Religion",
+          "valuePerTurn": 2,
+          "duration": 2
+        }
+      ],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "Decline politely",
+      "rightChoiceModifiers": {
+        "religion": -5,
+        "people": -5,
+        "army": -10,
+        "wealth": 10
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": ""
+    },
+    {
+      "id": "traveling_hunter",
+      "scenarioText": "A scarred hunter kneels before the throne. He swears a winged shadow nests in the northern peaks — and offers to lead an expedition.",
+      "prerequisiteFlag": "",
+      "leftChoiceText": "Fund the expedition",
+      "leftChoiceModifiers": {
+        "religion": -5,
+        "people": 5,
+        "army": -5,
+        "wealth": -10
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "Discovered_Dragon",
+      "rightChoiceText": "Dismiss him as a liar",
+      "rightChoiceModifiers": {
+        "religion": 5,
+        "people": -5,
+        "army": 0,
+        "wealth": 5
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": ""
+    }
+  ],
+  "unlockablePools": [
+    {
+      "id": "dragon_pool",
+      "cards": [
+        {
+          "id": "dragon_tribute",
+          "scenarioText": "The dragon of the northern peaks circles the capital. Priests demand offerings; generals urge a siege of its lair.",
+          "prerequisiteFlag": "Discovered_Dragon",
+          "leftChoiceText": "Send sacred offerings",
+          "leftChoiceModifiers": {
+            "religion": 15,
+            "people": -5,
+            "army": 0,
+            "wealth": -15
+          },
+          "leftChoiceStatusEffects": [],
+          "leftChoiceUnlockFlag": "",
+          "rightChoiceText": "Assault the lair",
+          "rightChoiceModifiers": {
+            "religion": -10,
+            "people": 10,
+            "army": -20,
+            "wealth": -5
+          },
+          "rightChoiceStatusEffects": [
+            {
+              "targetStat": "Army",
+              "valuePerTurn": -3,
+              "duration": 3
+            }
+          ],
+          "rightChoiceUnlockFlag": "Slayed_Dragon"
+        }
+      ]
+    },
+    {
+      "id": "aftermath_pool",
+      "cards": [
+        {
+          "id": "dragon_hoard",
+          "scenarioText": "Survivors of the dragon war drag chests of scorched gold into the courtyard. The people cheer — the Church calls it cursed.",
+          "prerequisiteFlag": "Slayed_Dragon",
+          "leftChoiceText": "Claim the hoard for the crown",
+          "leftChoiceModifiers": {
+            "religion": -15,
+            "people": 10,
+            "army": 5,
+            "wealth": 25
+          },
+          "leftChoiceStatusEffects": [],
+          "leftChoiceUnlockFlag": "",
+          "rightChoiceText": "Consecrate and bury it",
+          "rightChoiceModifiers": {
+            "religion": 20,
+            "people": -5,
+            "army": 0,
+            "wealth": -10
+          },
+          "rightChoiceStatusEffects": [],
+          "rightChoiceUnlockFlag": ""
+        }
+      ]
+    }
+  ]
+}

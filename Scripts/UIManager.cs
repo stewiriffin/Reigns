@@ -1,0 +1,402 @@
+using System.Collections;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+/// <summary>
+/// Bridges kingdom / card logic to on-screen UI:
+/// stat sliders, card copy, swipe choice hints, and stat-change indicators.
+/// </summary>
+public class UIManager : MonoBehaviour
+{
+    private const float StatMin = 0f;
+    private const float StatMax = 100f;
+    private const float DefaultLerpDuration = 0.5f;
+
+    /// <summary>Normalized swipe magnitude at which choice hints / indicators appear.</summary>
+    public const float HintRevealNormalized = 0.3f;
+
+    [Header("Stat Sliders")]
+    [SerializeField] private Slider religionSlider;
+    [SerializeField] private Slider peopleSlider;
+    [SerializeField] private Slider armySlider;
+    [SerializeField] private Slider wealthSlider;
+
+    [Header("Stat Change Indicators (above each slider)")]
+    [Tooltip("Small icons that turn on when the hovered choice will change that stat.")]
+    [SerializeField] private GameObject religionChangeIcon;
+    [SerializeField] private GameObject peopleChangeIcon;
+    [SerializeField] private GameObject armyChangeIcon;
+    [SerializeField] private GameObject wealthChangeIcon;
+
+    [Header("Status Effect Icons (near each slider)")]
+    [Tooltip("Shown while a lasting buff/debuff is active on that stat.")]
+    [SerializeField] private GameObject religionBuffIcon;
+    [SerializeField] private GameObject religionDebuffIcon;
+    [SerializeField] private GameObject peopleBuffIcon;
+    [SerializeField] private GameObject peopleDebuffIcon;
+    [SerializeField] private GameObject armyBuffIcon;
+    [SerializeField] private GameObject armyDebuffIcon;
+    [SerializeField] private GameObject wealthBuffIcon;
+    [SerializeField] private GameObject wealthDebuffIcon;
+
+    [Header("Card Text")]
+    [SerializeField] private TextMeshProUGUI scenarioText;
+    [SerializeField] private TextMeshProUGUI leftChoiceText;
+    [SerializeField] private TextMeshProUGUI rightChoiceText;
+
+    [Header("Score")]
+    [SerializeField] private TextMeshProUGUI yearsRuledText;
+    [SerializeField] private TextMeshProUGUI longestReignText;
+    [SerializeField] private string yearsRuledFormat = "Year {0}";
+    [SerializeField] private string longestReignFormat = "Longest Reign: {0}";
+
+    [Header("Game Over Panel")]
+    [SerializeField] private GameObject gameOverPanel;
+    [SerializeField] private TextMeshProUGUI deathMessageText;
+    [SerializeField] private TextMeshProUGUI gameOverYearsText;
+    [SerializeField] private Button playAgainButton;
+    [SerializeField] private Button secondChanceButton;
+
+    [Header("Choice Hint Fade")]
+    [Tooltip("Optional. If unset, the TMP text color alpha is faded instead.")]
+    [SerializeField] private CanvasGroup leftChoiceGroup;
+    [SerializeField] private CanvasGroup rightChoiceGroup;
+
+    [Header("Animation")]
+    [SerializeField] private float sliderLerpDuration = DefaultLerpDuration;
+
+    private Coroutine sliderLerpRoutine;
+    private Card currentCard;
+    private Color leftChoiceBaseColor = Color.white;
+    private Color rightChoiceBaseColor = Color.white;
+
+    private void Awake()
+    {
+        ConfigureSlider(religionSlider);
+        ConfigureSlider(peopleSlider);
+        ConfigureSlider(armySlider);
+        ConfigureSlider(wealthSlider);
+
+        CacheChoiceColors();
+        ClearSwipeFeedback();
+        ClearStatusEffectIcons();
+        HideGameOver();
+    }
+
+    /// <summary>
+    /// Wires the Play Again button to restart the run (e.g. GameManager.StartNewGame).
+    /// </summary>
+    public void BindPlayAgain(UnityEngine.Events.UnityAction onPlayAgain)
+    {
+        if (playAgainButton == null || onPlayAgain == null)
+            return;
+
+        playAgainButton.onClick.RemoveListener(onPlayAgain);
+        playAgainButton.onClick.AddListener(onPlayAgain);
+    }
+
+    /// <summary>
+    /// Wires the Rewarded Video "Second Chance" button.
+    /// </summary>
+    public void BindSecondChance(UnityEngine.Events.UnityAction onSecondChance)
+    {
+        if (secondChanceButton == null || onSecondChance == null)
+            return;
+
+        secondChanceButton.onClick.RemoveListener(onSecondChance);
+        secondChanceButton.onClick.AddListener(onSecondChance);
+    }
+
+    /// <summary>
+    /// Enables/disables the Second Chance button (e.g. already used this death).
+    /// </summary>
+    public void SetSecondChanceAvailable(bool available)
+    {
+        if (secondChanceButton != null)
+            secondChanceButton.interactable = available;
+    }
+
+    /// <summary>
+    /// Shows the Game Over panel with the specific death message for this failure.
+    /// </summary>
+    public void ShowGameOver(string deathMessage, int yearsRuled, int longestReign, bool secondChanceAvailable = true)
+    {
+        if (deathMessageText != null)
+            deathMessageText.text = deathMessage ?? string.Empty;
+
+        if (gameOverYearsText != null)
+        {
+            string yearWord = yearsRuled == 1 ? "year" : "years";
+            gameOverYearsText.text = $"You ruled for {yearsRuled} {yearWord}.\nLongest Reign: {longestReign}";
+        }
+
+        SetSecondChanceAvailable(secondChanceAvailable);
+
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Hides the Game Over panel.
+    /// </summary>
+    public void HideGameOver()
+    {
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Smoothly lerps all four stat sliders to the given values over 0.5 seconds.
+    /// </summary>
+    public void UpdateStatSliders(int religion, int people, int army, int wealth)
+    {
+        if (sliderLerpRoutine != null)
+            StopCoroutine(sliderLerpRoutine);
+
+        sliderLerpRoutine = StartCoroutine(LerpStatSliders(
+            ClampStat(religion),
+            ClampStat(people),
+            ClampStat(army),
+            ClampStat(wealth)));
+    }
+
+    /// <summary>
+    /// Instantly sets slider values with no animation (e.g. new game start).
+    /// </summary>
+    public void SetStatSlidersImmediate(int religion, int people, int army, int wealth)
+    {
+        if (sliderLerpRoutine != null)
+        {
+            StopCoroutine(sliderLerpRoutine);
+            sliderLerpRoutine = null;
+        }
+
+        SetSliderValue(religionSlider, ClampStat(religion));
+        SetSliderValue(peopleSlider, ClampStat(people));
+        SetSliderValue(armySlider, ClampStat(army));
+        SetSliderValue(wealthSlider, ClampStat(wealth));
+    }
+
+    /// <summary>
+    /// Fills scenario and choice labels from the drawn card, then hides swipe hints.
+    /// </summary>
+    public void UpdateCardUI(Card card)
+    {
+        currentCard = card;
+
+        if (scenarioText != null)
+            scenarioText.text = card != null ? card.scenarioText : string.Empty;
+
+        if (leftChoiceText != null)
+            leftChoiceText.text = card != null ? card.leftChoiceText : string.Empty;
+
+        if (rightChoiceText != null)
+            rightChoiceText.text = card != null ? card.rightChoiceText : string.Empty;
+
+        ClearSwipeFeedback();
+    }
+
+    /// <summary>
+    /// Updates the Years Ruled (score) display.
+    /// </summary>
+    public void UpdateYearsRuled(int yearsRuled)
+    {
+        if (yearsRuledText != null)
+            yearsRuledText.text = string.Format(yearsRuledFormat, yearsRuled);
+    }
+
+    /// <summary>
+    /// Updates the Longest Reign (high score) display, if assigned.
+    /// </summary>
+    public void UpdateLongestReign(int longestReign)
+    {
+        if (longestReignText != null)
+            longestReignText.text = string.Format(longestReignFormat, longestReign);
+    }
+
+    /// <summary>
+    /// Updates choice-text fade and stat-change icons from the current drag amount.
+    /// <paramref name="normalizedSwipe"/> is in [-1, 1] (negative = left).
+    /// Hints appear once |normalized| passes 30% of the swipe threshold.
+    /// </summary>
+    public void UpdateSwipeFeedback(float normalizedSwipe)
+    {
+        float abs = Mathf.Abs(normalizedSwipe);
+        bool pastHintThreshold = abs >= HintRevealNormalized;
+
+        // Fade from 0 at 30% threshold to 1 at full threshold.
+        float fade = pastHintThreshold
+            ? Mathf.InverseLerp(HintRevealNormalized, 1f, abs)
+            : 0f;
+
+        bool draggingLeft = normalizedSwipe < 0f;
+        bool draggingRight = normalizedSwipe > 0f;
+
+        SetChoiceHintAlpha(left: true, draggingLeft ? fade : 0f);
+        SetChoiceHintAlpha(left: false, draggingRight ? fade : 0f);
+
+        StatModifiers preview = null;
+        if (pastHintThreshold && currentCard != null)
+        {
+            preview = draggingLeft
+                ? currentCard.leftChoiceModifiers
+                : draggingRight
+                    ? currentCard.rightChoiceModifiers
+                    : null;
+        }
+
+        SetStatChangeIndicators(preview);
+    }
+
+    /// <summary>
+    /// Hides choice hints and all stat-change indicators.
+    /// </summary>
+    public void ClearSwipeFeedback()
+    {
+        SetChoiceHintAlpha(left: true, 0f);
+        SetChoiceHintAlpha(left: false, 0f);
+        SetStatChangeIndicators(null);
+    }
+
+    /// <summary>
+    /// Toggles buff/debuff icons near each slider based on active status effects.
+    /// </summary>
+    public void UpdateStatusEffectIcons(StatusEffectTracker tracker)
+    {
+        if (tracker == null)
+        {
+            ClearStatusEffectIcons();
+            return;
+        }
+
+        UpdateStatStatusIcons(StatType.Religion, tracker, religionBuffIcon, religionDebuffIcon);
+        UpdateStatStatusIcons(StatType.People, tracker, peopleBuffIcon, peopleDebuffIcon);
+        UpdateStatStatusIcons(StatType.Army, tracker, armyBuffIcon, armyDebuffIcon);
+        UpdateStatStatusIcons(StatType.Wealth, tracker, wealthBuffIcon, wealthDebuffIcon);
+    }
+
+    public void ClearStatusEffectIcons()
+    {
+        SetIconActive(religionBuffIcon, false);
+        SetIconActive(religionDebuffIcon, false);
+        SetIconActive(peopleBuffIcon, false);
+        SetIconActive(peopleDebuffIcon, false);
+        SetIconActive(armyBuffIcon, false);
+        SetIconActive(armyDebuffIcon, false);
+        SetIconActive(wealthBuffIcon, false);
+        SetIconActive(wealthDebuffIcon, false);
+    }
+
+    private static void UpdateStatStatusIcons(
+        StatType stat,
+        StatusEffectTracker tracker,
+        GameObject buffIcon,
+        GameObject debuffIcon)
+    {
+        tracker.GetBuffDebuffFlags(stat, out bool hasBuff, out bool hasDebuff);
+        SetIconActive(buffIcon, hasBuff);
+        SetIconActive(debuffIcon, hasDebuff);
+    }
+
+    private void SetStatChangeIndicators(StatModifiers modifiers)
+    {
+        SetIconActive(religionChangeIcon, modifiers != null && modifiers.ModifiesReligion);
+        SetIconActive(peopleChangeIcon, modifiers != null && modifiers.ModifiesPeople);
+        SetIconActive(armyChangeIcon, modifiers != null && modifiers.ModifiesArmy);
+        SetIconActive(wealthChangeIcon, modifiers != null && modifiers.ModifiesWealth);
+    }
+
+    private void SetChoiceHintAlpha(bool left, float alpha)
+    {
+        CanvasGroup group = left ? leftChoiceGroup : rightChoiceGroup;
+        TextMeshProUGUI label = left ? leftChoiceText : rightChoiceText;
+        Color baseColor = left ? leftChoiceBaseColor : rightChoiceBaseColor;
+
+        if (group != null)
+        {
+            group.alpha = alpha;
+            return;
+        }
+
+        if (label != null)
+        {
+            Color c = baseColor;
+            c.a = baseColor.a * alpha;
+            label.color = c;
+        }
+    }
+
+    private void CacheChoiceColors()
+    {
+        if (leftChoiceText != null)
+            leftChoiceBaseColor = leftChoiceText.color;
+        if (rightChoiceText != null)
+            rightChoiceBaseColor = rightChoiceText.color;
+    }
+
+    private IEnumerator LerpStatSliders(float religion, float people, float army, float wealth)
+    {
+        float startReligion = GetSliderValue(religionSlider);
+        float startPeople = GetSliderValue(peopleSlider);
+        float startArmy = GetSliderValue(armySlider);
+        float startWealth = GetSliderValue(wealthSlider);
+
+        float duration = Mathf.Max(0.01f, sliderLerpDuration);
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            t = t * t * (3f - 2f * t);
+
+            SetSliderValue(religionSlider, Mathf.Lerp(startReligion, religion, t));
+            SetSliderValue(peopleSlider, Mathf.Lerp(startPeople, people, t));
+            SetSliderValue(armySlider, Mathf.Lerp(startArmy, army, t));
+            SetSliderValue(wealthSlider, Mathf.Lerp(startWealth, wealth, t));
+
+            yield return null;
+        }
+
+        SetSliderValue(religionSlider, religion);
+        SetSliderValue(peopleSlider, people);
+        SetSliderValue(armySlider, army);
+        SetSliderValue(wealthSlider, wealth);
+
+        sliderLerpRoutine = null;
+    }
+
+    private static void ConfigureSlider(Slider slider)
+    {
+        if (slider == null)
+            return;
+
+        slider.minValue = StatMin;
+        slider.maxValue = StatMax;
+        slider.wholeNumbers = true;
+        slider.interactable = false;
+    }
+
+    private static void SetIconActive(GameObject icon, bool active)
+    {
+        if (icon != null && icon.activeSelf != active)
+            icon.SetActive(active);
+    }
+
+    private static float GetSliderValue(Slider slider)
+    {
+        return slider != null ? slider.value : StatMin;
+    }
+
+    private static void SetSliderValue(Slider slider, float value)
+    {
+        if (slider != null)
+            slider.value = value;
+    }
+
+    private static float ClampStat(int value)
+    {
+        return Mathf.Clamp(value, StatMin, StatMax);
+    }
+}
