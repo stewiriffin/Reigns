@@ -1,0 +1,40 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+Recordings/
+
+# Asset meta noise / IDE
+.vs/
+.idea/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+
+# Android signing — NEVER commit these
+*.keystore
+*.jks
+*.keystore.flags
+*.keystore_script
+userkeystore.passwords.txt
+**/keystore.passwords.txt
+Secrets/
+secrets/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Crashlytics / local tooling
+crashlytics-build.properties
+sysinfo.txt
