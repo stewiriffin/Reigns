@@ -856,4 +856,71 @@ public class GameManager : MonoBehaviour
             list[j] = temp;
         }
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// Debug-only: jump the run to a specific card by ID.
+    /// </summary>
+    public bool DebugJumpToCard(string cardId)
+    {
+        if (string.IsNullOrWhiteSpace(cardId))
+            return false;
+
+        if (cardCatalog.Count == 0)
+            LoadDeck();
+
+        Card card = CardLoader.FindById(cardCatalog, cardId.Trim());
+        if (card == null)
+            return false;
+
+        StopAllCoroutines();
+        isResolvingChoice = false;
+        gameOverSequenceRunning = false;
+        forcedNextCardId = null;
+        pendingDeathCause = DeathCause.None;
+        skipStatusTickOnce = true;
+
+        if (kingdomStats != null && kingdomStats.IsGameOver)
+            kingdomStats.LoadState(kingdomStats.Religion, kingdomStats.People, kingdomStats.Army, kingdomStats.Wealth);
+
+        if (uiManager != null)
+            uiManager.HideGameOver();
+
+        RemoveFromDrawPileById(card.id);
+        DisplayCard(card);
+
+        if (cardSwipe != null)
+        {
+            cardSwipe.PrepareForNextCard();
+            cardSwipe.SetInputEnabled(true);
+        }
+
+        hasActiveRun = true;
+        DebugRefreshHud();
+        return true;
+    }
+
+    /// <summary>
+    /// Debug-only: force a death cause and open the game-over flow.
+    /// </summary>
+    public void DebugForceDeath(DeathCause cause)
+    {
+        if (cause == DeathCause.None || kingdomStats == null)
+            return;
+
+        isResolvingChoice = false;
+        kingdomStats.DebugForceDeath(cause);
+        // KingdomStats.OnGameOver → HandleGameOver → BeginGameOverSequence.
+    }
+
+    public void DebugRefreshHud()
+    {
+        RefreshStatHud(immediate: true);
+        RefreshScoreHud();
+        RefreshStatusEffectUi();
+
+        if (atmosphere != null)
+            atmosphere.RefreshImmediate();
+    }
+#endif
 }

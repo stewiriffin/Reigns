@@ -187,6 +187,86 @@ public class KingdomStats : MonoBehaviour
         Debug.Log($"Game Over — {cause}");
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// Debug-only: set one stat and re-run death checks.
+    /// </summary>
+    public void DebugSetStat(StatType stat, int value)
+    {
+        value = ClampStat(value);
+        IsGameOver = false;
+        LastDeathCause = DeathCause.None;
+
+        switch (stat)
+        {
+            case StatType.Religion:
+                religion = value;
+                break;
+            case StatType.People:
+                people = value;
+                break;
+            case StatType.Army:
+                army = value;
+                break;
+            case StatType.Wealth:
+                wealth = value;
+                break;
+        }
+
+        CheckGameOver();
+    }
+
+    /// <summary>
+    /// Debug-only: force a specific death cause (bypasses inventory charms).
+    /// </summary>
+    public void DebugForceDeath(DeathCause cause)
+    {
+        if (cause == DeathCause.None)
+            return;
+
+        Func<DeathCause, bool> previous = TryPreventDeath;
+        TryPreventDeath = null;
+
+        IsGameOver = false;
+        LastDeathCause = DeathCause.None;
+        ApplyDeathCauseValue(cause);
+        TriggerGameOver(cause);
+
+        TryPreventDeath = previous;
+    }
+
+    private void ApplyDeathCauseValue(DeathCause cause)
+    {
+        switch (cause)
+        {
+            case DeathCause.ReligionEmpty:
+                religion = MinStat;
+                break;
+            case DeathCause.ReligionFull:
+                religion = MaxStat;
+                break;
+            case DeathCause.PeopleEmpty:
+                people = MinStat;
+                break;
+            case DeathCause.PeopleFull:
+                people = MaxStat;
+                break;
+            case DeathCause.ArmyEmpty:
+                army = MinStat;
+                break;
+            case DeathCause.ArmyFull:
+                army = MaxStat;
+                break;
+            case DeathCause.WealthEmpty:
+                wealth = MinStat;
+                break;
+            case DeathCause.WealthFull:
+                wealth = MaxStat;
+                break;
+        }
+    }
+#endif
+
     /// <summary>
     /// Second Chance: restores the failing stat to 50 and clears game over so the run can continue.
     /// </summary>
