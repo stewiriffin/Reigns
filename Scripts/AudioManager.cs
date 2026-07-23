@@ -41,6 +41,7 @@ public class AudioManager : MonoBehaviour
     private AudioSource idleBgmSource;
     private Coroutine crossfadeRoutine;
     private float bgmFadeMultiplier = 1f;
+    private bool mutedForFullscreenAd;
 
     private void Awake()
     {
@@ -194,6 +195,20 @@ public class AudioManager : MonoBehaviour
     public void PlayButtonClick() => PlaySFX(buttonClickSfx);
     public void PlayGameOver() => PlaySFX(gameOverSfx);
 
+    /// <summary>
+    /// Mutes BGM output while a full-screen ad is up without changing saved volume prefs.
+    /// </summary>
+    public void SetMutedForFullscreenAd(bool muted)
+    {
+        mutedForFullscreenAd = muted;
+        ApplyVolumes();
+
+        if (activeBgmSource != null && activeBgmSource.isPlaying)
+            activeBgmSource.volume = GetBgmOutputVolume() * bgmFadeMultiplier;
+        if (idleBgmSource != null && idleBgmSource.isPlaying)
+            idleBgmSource.volume = muted ? 0f : GetBgmOutputVolume() * bgmFadeMultiplier;
+    }
+
     public void StopBGM(bool fade = true)
     {
         if (crossfadeRoutine != null)
@@ -292,6 +307,6 @@ public class AudioManager : MonoBehaviour
         }
     }
 
-    private float GetBgmOutputVolume() => masterVolume * bgmVolume;
+    private float GetBgmOutputVolume() => mutedForFullscreenAd ? 0f : masterVolume * bgmVolume;
     private float GetSfxOutputVolume() => masterVolume * sfxVolume;
 }

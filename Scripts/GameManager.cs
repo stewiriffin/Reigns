@@ -21,6 +21,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] private InventoryManager inventoryManager;
     [SerializeField] private SaveManager saveManager;
     [SerializeField] private AchievementManager achievementManager;
+    [SerializeField] private AnalyticsManager analyticsManager;
+    [SerializeField] private PlayServicesManager playServicesManager;
 
     [Header("Deck")]
     [SerializeField] private string cardsResourcePath = "Cards/event_cards";
@@ -37,7 +39,7 @@ public class GameManager : MonoBehaviour
     private Card currentCard;
     private bool isResolvingChoice;
     private bool skipStatusTickOnce;
-    private bool secondChanceUsedThisDeath;
+    private bool secondChanceUsedThisRun;
     private bool gameOverSequenceRunning;
     private bool hasActiveRun;
     private bool inTutorial;
@@ -73,6 +75,9 @@ public class GameManager : MonoBehaviour
         if (adManager == null)
             adManager = AdManager.Instance != null ? AdManager.Instance : FindObjectOfType<AdManager>();
 
+        if (adManager == null)
+            adManager = new GameObject("AdManager").AddComponent<AdManager>();
+
         if (atmosphere == null)
             atmosphere = FindObjectOfType<KingdomAtmosphere>();
 
@@ -93,6 +98,25 @@ public class GameManager : MonoBehaviour
         if (achievementManager == null)
             achievementManager = new GameObject("AchievementManager").AddComponent<AchievementManager>();
 
+        if (analyticsManager == null)
+            analyticsManager = AnalyticsManager.Instance != null
+                ? AnalyticsManager.Instance
+                : FindObjectOfType<AnalyticsManager>();
+
+        if (analyticsManager == null)
+            analyticsManager = new GameObject("AnalyticsManager").AddComponent<AnalyticsManager>();
+
+        if (playServicesManager == null)
+            playServicesManager = PlayServicesManager.Instance != null
+                ? PlayServicesManager.Instance
+                : FindObjectOfType<PlayServicesManager>();
+
+        if (playServicesManager == null)
+            playServicesManager = new GameObject("PlayServicesManager").AddComponent<PlayServicesManager>();
+
+        if (FindObjectOfType<SettingsMenu>() == null)
+            new GameObject("SettingsMenu").AddComponent<SettingsMenu>();
+
         LongestReign = PlayerPrefs.GetInt(LongestReignPrefsKey, 0);
         deathMessages = DeathMessageLoader.Load(deathMessagesResourcePath);
 
@@ -101,6 +125,13 @@ public class GameManager : MonoBehaviour
             uiManager.HideGameOver();
             uiManager.BindPlayAgain(PlayAgain);
             uiManager.BindSecondChance(OnSecondChanceClicked);
+            uiManager.BindLeaderboard(OnLeaderboardClicked);
+#if UNITY_ANDROID && !UNITY_EDITOR
+            uiManager.SetLeaderboardButtonVisible(true);
+#else
+            // Still visible in Editor so you can verify wiring; Play Services call is stubbed.
+            uiManager.SetLeaderboardButtonVisible(true);
+#endif
         }
     }
 
@@ -115,6 +146,9 @@ public class GameManager : MonoBehaviour
 
         if (kingdomStats != null)
             kingdomStats.OnGameOver += HandleGameOver;
+
+        if (adManager != null)
+            adManager.OnRewardedAvailabilityChanged += HandleRewardedAvailabilityChanged;
     }
 
     private void OnDisable()
@@ -128,6 +162,9 @@ public class GameManager : MonoBehaviour
 
         if (kingdomStats != null)
             kingdomStats.OnGameOver -= HandleGameOver;
+
+        if (adManager != null)
+            adManager.OnRewardedAvailabilityChanged -= HandleRewardedAvailabilityChanged;
     }
 
     private void Start()
@@ -143,6 +180,8 @@ public class GameManager : MonoBehaviour
         if (UIFadeTransition.Instance != null)
         {
             UIFadeTransition.Instance.SnapTo(UIFadeTransition.ScreenId.StartMenu);
+            if (adManager != null)
+                adManager.SetBannerAllowed(false);
             return;
         }
 
@@ -195,7 +234,7 @@ public class GameManager : MonoBehaviour
         StopAllCoroutines();
         isResolvingChoice = false;
         gameOverSequenceRunning = false;
-        secondChanceUsedThisDeath = false;
+        secondChanceUsedThisRun = false;
         lastCardId = null;
         currentCard = null;
         forcedNextCardId = null;
@@ -227,6 +266,9 @@ public class GameManager : MonoBehaviour
             atmosphere.RefreshImmediate();
 
         LoadDeck();
+
+        if (adManager != null)
+            adManager.SetBannerAllowed(true);
 
         if (cardSwipe != null)
         {
@@ -342,7 +384,8 @@ public class GameManager : MonoBehaviour
             wealth = kingdomStats.Wealth,
             statusEffects = statusEffects.ToSaveArray(),
             inventoryItemIds = itemIds ?? new string[0],
-            currentCardId = currentCard.id
+            currentCardId = currentCard.id,
+            secondChanceUsedThisRun = secondChanceUsedThisRun
         };
     }
 
@@ -379,7 +422,7 @@ public class GameManager : MonoBehaviour
         StopAllCoroutines();
         isResolvingChoice = false;
         gameOverSequenceRunning = false;
-        secondChanceUsedThisDeath = false;
+        secondChanceUsedThisRun = data.secondChanceUsedThisRun;
         forcedNextCardId = null;
         pendingDeathCause = DeathCause.None;
         skipStatusTickOnce = true;
@@ -416,6 +459,9 @@ public class GameManager : MonoBehaviour
 
         if (atmosphere != null)
             atmosphere.RefreshImmediate();
+
+        if (adManager != null)
+            adManager.SetBannerAllowed(true);
 
         DisplayCard(card);
 
@@ -668,6 +714,9 @@ public class GameManager : MonoBehaviour
         if (inventoryManager != null)
             inventoryManager.GrantItem(grantItemId);
 
+        if (!inTutorial && analyticsManager != null)
+            analyticsManager.LogCardChoice(currentCard.id, isLeft);
+
         int beforeReligion = kingdomStats.Religion;
         int beforePeople = kingdomStats.People;
         int beforeArmy = kingdomStats.Army;
@@ -786,7 +835,6 @@ public class GameManager : MonoBehaviour
         gameOverSequenceRunning = true;
         hasActiveRun = false;
         isResolvingChoice = false;
-        secondChanceUsedThisDeath = false;
         pendingDeathCause = cause;
 
         if (saveManager != null)
@@ -796,6 +844,15 @@ public class GameManager : MonoBehaviour
 
         if (achievementManager != null)
             achievementManager.NotifyDeath(cause);
+
+        if (analyticsManager != null)
+            analyticsManager.LogPlayerDeath(YearsRuled, cause, lastCardId);
+
+        if (playServicesManager != null)
+            playServicesManager.SubmitYearsRuled(YearsRuled);
+
+        if (adManager != null)
+            adManager.SetBannerAllowed(false);
 
         bool showInterstitial = adManager != null && adManager.ShouldShowGameOverInterstitial();
         if (showInterstitial)
@@ -828,7 +885,7 @@ public class GameManager : MonoBehaviour
                     deathMessage,
                     YearsRuled,
                     LongestReign,
-                    secondChanceAvailable: !secondChanceUsedThisDeath);
+                    secondChanceAvailable: CanOfferSecondChance());
             }
         }
 
@@ -841,6 +898,29 @@ public class GameManager : MonoBehaviour
         }
 
         ShowPanel();
+    }
+
+    private bool CanOfferSecondChance()
+    {
+        if (secondChanceUsedThisRun)
+            return false;
+
+        if (adManager == null)
+            return false;
+
+        return adManager.CanOfferRewardedAd;
+    }
+
+    private void HandleRewardedAvailabilityChanged(bool available)
+    {
+        // If the player is sitting on Game Over and connectivity returns with a cached ad, reveal the button.
+        if (uiManager == null || secondChanceUsedThisRun)
+            return;
+
+        if (kingdomStats == null || !kingdomStats.IsGameOver)
+            return;
+
+        uiManager.SetSecondChanceAvailable(available);
     }
 
     private void EvaluateDangerShake(int beforeReligion, int beforePeople, int beforeArmy, int beforeWealth)
@@ -867,18 +947,36 @@ public class GameManager : MonoBehaviour
         return before >= dangerThreshold || after < before;
     }
 
+    private void OnLeaderboardClicked()
+    {
+        if (playServicesManager == null)
+            playServicesManager = PlayServicesManager.Instance;
+
+        if (playServicesManager != null)
+            playServicesManager.ShowYearsRuledLeaderboard();
+        else
+            Debug.LogWarning("GameManager: PlayServicesManager missing — cannot open leaderboard.");
+    }
+
     private void OnSecondChanceClicked()
     {
-        if (secondChanceUsedThisDeath || kingdomStats == null || !kingdomStats.IsGameOver)
+        if (secondChanceUsedThisRun || kingdomStats == null || !kingdomStats.IsGameOver)
             return;
 
+        // Disable immediately so the player can't double-tap while the ad loads.
         if (uiManager != null)
             uiManager.SetSecondChanceAvailable(false);
 
         if (adManager == null)
         {
-            Debug.LogWarning("GameManager: No AdManager — granting Second Chance without ad (dev fallback).");
-            ApplySecondChance();
+            Debug.LogWarning("GameManager: No AdManager — Second Chance unavailable.");
+            return;
+        }
+
+        if (!adManager.IsRewardedReady)
+        {
+            Debug.LogWarning("GameManager: Rewarded ad not ready — staying on Game Over.");
+            // Keep reward disabled for this Game Over (standard Game Over state).
             return;
         }
 
@@ -886,33 +984,40 @@ public class GameManager : MonoBehaviour
             onRewarded: ApplySecondChance,
             onFailedOrSkipped: () =>
             {
+                // Ad failed or closed early — no reward; remain on Game Over with button disabled.
                 if (uiManager != null)
-                    uiManager.SetSecondChanceAvailable(!secondChanceUsedThisDeath);
+                    uiManager.SetSecondChanceAvailable(false);
+                Debug.Log("GameManager: Second Chance ad failed/skipped — reward disabled.");
             });
     }
 
     /// <summary>
-    /// Restores the failing stat to 50 and continues the run at the same Years Ruled.
+    /// After a completed rewarded ad: restore the killing stat to 50 and continue
+    /// at the same Years Ruled. Only once per run.
     /// </summary>
     private void ApplySecondChance()
     {
-        if (secondChanceUsedThisDeath)
+        if (secondChanceUsedThisRun)
             return;
 
         DeathCause failed = pendingDeathCause != DeathCause.None
             ? pendingDeathCause
             : kingdomStats.LastDeathCause;
 
-        if (!kingdomStats.GrantSecondChance())
+        if (!kingdomStats.GrantSecondChance(failed))
         {
             Debug.LogWarning("GameManager: Second Chance failed — no valid death cause.");
+            if (uiManager != null)
+                uiManager.SetSecondChanceAvailable(false);
             return;
         }
 
-        secondChanceUsedThisDeath = true;
+        secondChanceUsedThisRun = true;
         pendingDeathCause = DeathCause.None;
         isResolvingChoice = false;
+        gameOverSequenceRunning = false;
 
+        // YearsRuled is intentionally unchanged — resume from the year they died.
         RefreshStatHud(immediate: true);
         RefreshScoreHud();
         RefreshStatusEffectUi();
@@ -929,10 +1034,20 @@ public class GameManager : MonoBehaviour
         if (UIFadeTransition.Instance != null)
             UIFadeTransition.Instance.SnapTo(UIFadeTransition.ScreenId.Gameplay);
 
+        if (adManager != null)
+            adManager.SetBannerAllowed(true);
+
         Debug.Log($"GameManager: Second Chance — restored {failed} to 50 at year {YearsRuled}.");
 
         skipStatusTickOnce = true;
         hasActiveRun = true;
+
+        if (cardSwipe != null)
+        {
+            cardSwipe.PrepareForNextCard();
+            cardSwipe.SetInputEnabled(true);
+        }
+
         ShowNextCard();
 
         if (saveManager != null)

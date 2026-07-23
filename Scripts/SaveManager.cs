@@ -16,6 +16,7 @@ public class GameSaveData
     public StatusEffect[] statusEffects;
     public string[] inventoryItemIds;
     public string currentCardId;
+    public bool secondChanceUsedThisRun;
 }
 
 /// <summary>

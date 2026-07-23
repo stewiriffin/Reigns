@@ -46,6 +46,8 @@ public class UIFadeTransition : MonoBehaviour
             SetGroupState(startMenuGroup, true, 1f);
             SetGroupState(gameplayGroup, false, 0f);
             SetGroupState(gameOverGroup, false, 0f);
+            if (AdManager.Instance != null)
+                AdManager.Instance.NotifyUiScreen(ScreenId.StartMenu);
         }
     }
 
@@ -102,6 +104,9 @@ public class UIFadeTransition : MonoBehaviour
         SetGroupState(startMenuGroup, screen == ScreenId.StartMenu, screen == ScreenId.StartMenu ? 1f : 0f);
         SetGroupState(gameplayGroup, screen == ScreenId.Gameplay, screen == ScreenId.Gameplay ? 1f : 0f);
         SetGroupState(gameOverGroup, screen == ScreenId.GameOver, screen == ScreenId.GameOver ? 1f : 0f);
+
+        if (AdManager.Instance != null)
+            AdManager.Instance.NotifyUiScreen(screen);
     }
 
     private static void SetGroupState(CanvasGroup group, bool interactable, float alpha)

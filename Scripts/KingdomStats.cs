@@ -272,12 +272,18 @@ public class KingdomStats : MonoBehaviour
     /// <summary>
     /// Second Chance: restores the failing stat to 50 and clears game over so the run can continue.
     /// </summary>
-    public bool GrantSecondChance()
+    public bool GrantSecondChance(DeathCause cause = DeathCause.None)
     {
-        if (!IsGameOver || LastDeathCause == DeathCause.None)
+        if (!IsGameOver)
             return false;
 
-        switch (LastDeathCause)
+        if (cause == DeathCause.None)
+            cause = LastDeathCause;
+
+        if (cause == DeathCause.None)
+            return false;
+
+        switch (cause)
         {
             case DeathCause.ReligionEmpty:
             case DeathCause.ReligionFull:

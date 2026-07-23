@@ -1,54 +1,117 @@
 using System;
 using System.Collections;
 using UnityEngine;
+#if UNITY_ADS
+using UnityEngine.Advertisements;
+#endif
 
 /// <summary>
-/// Initializes Unity Ads on startup and exposes interstitial + rewarded video APIs.
-/// Define scripting symbol UNITY_ADS after installing the Advertisement package for device builds.
-/// Without UNITY_ADS, a mock provider is used so Editor / CI still compile and can test flow.
+/// Ads-only monetization hub (Unity Ads). Singleton initializes on startup and exposes
+/// banner, interstitial, and rewarded formats with load/fail/reward callbacks.
+///
+/// Setup: install the Advertisement package, then add scripting define <c>UNITY_ADS</c>.
+/// Without the define, a mock provider keeps Editor/CI stable.
 /// </summary>
 public class AdManager : MonoBehaviour
 {
     public static AdManager Instance { get; private set; }
 
-    [Header("Unity Ads")]
+    [Header("Unity Ads — Game IDs")]
     [SerializeField] private string androidGameId = "YOUR_ANDROID_GAME_ID";
     [SerializeField] private string iOSGameId = "YOUR_IOS_GAME_ID";
     [SerializeField] private bool testMode = true;
+
+    [Header("Ad Unit IDs")]
+    [SerializeField] private string bannerAdUnitId = "Banner_Android";
     [SerializeField] private string interstitialAdUnitId = "Interstitial_Android";
     [SerializeField] private string rewardedAdUnitId = "Rewarded_Android";
 
-    [Header("Game Over Interstitial")]
-    [Range(0f, 1f)]
-    [SerializeField] private float gameOverInterstitialChance = 0.3f;
+    [Header("Banner")]
+    [SerializeField] private bool showBannerDuringGameplay = true;
+    [SerializeField] private bool loadBannerOnInit = true;
+#if UNITY_ADS
+    [SerializeField] private BannerPosition bannerPosition = BannerPosition.BOTTOM_CENTER;
+#endif
 
-    [Header("Audio / Pause")]
-    [SerializeField] private bool pauseAudioDuringAds = true;
+    [Header("Interstitial Frequency Cap")]
+    [Tooltip("Show an interstitial only on every Nth Game Over (e.g. 3 = 3rd, 6th, 9th…).")]
+    [SerializeField] private int interstitialEveryNthGameOver = 3;
+    [Tooltip("Minimum real-time seconds between any full-screen ads (interstitial or rewarded).")]
+    [SerializeField] private float fullscreenAdCooldownSeconds = 180f;
+
+    [Header("Connectivity")]
+    [Tooltip("How often to poll reachability and prefetch ads when online.")]
+    [SerializeField] private float connectivityPollSeconds = 5f;
+
+    [Header("Fullscreen Ad Presentation")]
+    [SerializeField] private float failedLoadRetrySeconds = 15f;
+    [Tooltip("Mute BGM via AudioManager while a full-screen ad plays.")]
+    [SerializeField] private bool muteBgmDuringFullscreenAds = true;
+    [Tooltip("Pause Time.timeScale (gameplay / animations) while a full-screen ad plays.")]
     [SerializeField] private bool pauseTimeScaleDuringAds = true;
+    [Tooltip("Also pause AudioListener (mutes SFX). BGM mute above is preferred for music.")]
+    [SerializeField] private bool pauseAudioListenerDuringAds = false;
 
-    /// <summary>Fired when an ad unit finishes loading successfully.</summary>
+    /// <summary>Fired when any ad unit finishes loading successfully.</summary>
     public event Action<string> OnAdLoaded;
 
-    /// <summary>Fired when an ad unit fails to load. Args: adUnitId, error.</summary>
+    /// <summary>Fired when any ad unit fails to load. Args: adUnitId, error.</summary>
     public event Action<string, string> OnAdFailedToLoad;
 
-    /// <summary>Fired when an ad finishes showing (completed, skipped, or failed). Args: adUnitId, completed.</summary>
+    /// <summary>Fired when a rewarded video grants its reward (user finished watching).</summary>
+    public event Action<string> OnUserEarnedReward;
+
+    /// <summary>Fired when an interstitial/rewarded finishes showing. Args: adUnitId, completed.</summary>
     public event Action<string, bool> OnAdShowComplete;
+
+    /// <summary>Fired when rewarded availability for UI (e.g. Second Chance) changes.</summary>
+    public event Action<bool> OnRewardedAvailabilityChanged;
 
     public bool IsInitialized { get; private set; }
     public bool IsShowingAd { get; private set; }
+    public bool IsBannerVisible { get; private set; }
+    public bool IsBannerReady { get; private set; }
+    public bool IsInterstitialReady => interstitialReady;
+    public bool IsRewardedReady => rewardedReady;
+
+    /// <summary>True when the device reports a usable network path.</summary>
+    public bool IsOnline => Application.internetReachability != NetworkReachability.NotReachable;
+
+    /// <summary>Rewarded is loaded and the device is online — safe to show Second Chance.</summary>
+    public bool CanOfferRewardedAd => IsOnline && IsInitialized && rewardedReady;
+
+    /// <summary>Interstitial is loaded and the device is online.</summary>
+    public bool CanOfferInterstitialAd => IsOnline && IsInitialized && interstitialReady;
 
     private bool interstitialReady;
     private bool rewardedReady;
+    private bool bannerLoadRequested;
+    private bool bannerAllowedForCurrentScreen;
     private float previousTimeScale = 1f;
-    private bool previousAudioPause;
+    private bool wasOnline;
+    private bool lastReportedRewardedAvailability;
+
+    private int gameOverCount;
+    private long lastFullscreenAdUnix;
 
     private Action pendingRewardedSuccess;
     private Action pendingRewardedFail;
     private Action pendingInterstitialComplete;
 
+    private const string PrefsGameOverCount = "Ads_GameOverCount";
+    private const string PrefsLastFullscreenAdUnix = "Ads_LastFullscreenAdUnix";
+
+    private Coroutine bannerRetryRoutine;
+    private Coroutine interstitialRetryRoutine;
+    private Coroutine rewardedRetryRoutine;
+    private Coroutine connectivityRoutine;
+
 #if UNITY_ADS
     private UnityAdsBridge adsBridge;
+#endif
+
+#if !UNITY_ADS
+    private GameObject mockBanner;
 #endif
 
     private void Awake()
@@ -61,18 +124,39 @@ public class AdManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-
-#if UNITY_IOS
-        if (rewardedAdUnitId == "Rewarded_Android")
-            rewardedAdUnitId = "Rewarded_iOS";
-        if (interstitialAdUnitId == "Interstitial_Android")
-            interstitialAdUnitId = "Interstitial_iOS";
-#endif
+        ApplyPlatformAdUnitDefaults();
+        LoadFrequencyCapState();
+        bannerAllowedForCurrentScreen = false;
     }
 
     private void Start()
     {
+        wasOnline = IsOnline;
         InitializeAds();
+        connectivityRoutine = StartCoroutine(ConnectivityMonitor());
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (!pauseStatus)
+            HandleConnectivityChanged(forcePrefetch: true);
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (hasFocus)
+            HandleConnectivityChanged(forcePrefetch: true);
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+
+        if (connectivityRoutine != null)
+            StopCoroutine(connectivityRoutine);
+
+        HideBanner();
     }
 
     /// <summary>
@@ -92,92 +176,306 @@ public class AdManager : MonoBehaviour
         adsBridge.Initialize(gameId, testMode);
 #else
         Debug.Log("AdManager: UNITY_ADS not defined — using mock ads (Editor/dev).");
-        IsInitialized = true;
-        LoadInterstitial();
-        LoadRewarded();
+        HandleInitialized();
 #endif
     }
 
+    /// <summary>
+    /// True when this Game Over is eligible for an interstitial:
+    /// every Nth death, cooldown elapsed, online, and a cached ad is ready.
+    /// Never blocks the game — returns false when offline or unloaded.
+    /// </summary>
     public bool ShouldShowGameOverInterstitial()
     {
-        return UnityEngine.Random.value < gameOverInterstitialChance;
+        int everyNth = Mathf.Max(1, interstitialEveryNthGameOver);
+        gameOverCount++;
+        PlayerPrefs.SetInt(PrefsGameOverCount, gameOverCount);
+        PlayerPrefs.Save();
+
+        if (gameOverCount % everyNth != 0)
+        {
+            Debug.Log($"AdManager: Skip interstitial — Game Over #{gameOverCount} (need every {everyNth}).");
+            return false;
+        }
+
+        if (!IsFullscreenCooldownElapsed())
+        {
+            float remaining = GetFullscreenCooldownRemainingSeconds();
+            Debug.Log($"AdManager: Skip interstitial — cooldown {remaining:0}s remaining.");
+            return false;
+        }
+
+        if (!IsOnline)
+        {
+            Debug.Log("AdManager: Skip interstitial — device offline.");
+            return false;
+        }
+
+        if (!CanOfferInterstitialAd)
+        {
+            Debug.Log("AdManager: Skip interstitial — not cached yet (prefetching in background).");
+            PrefetchAdsIfOnline();
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
-    /// Shows an interstitial if loaded; always invokes <paramref name="onComplete"/> when finished or skipped.
+    /// Sync banner visibility to the active UI screen. Banners only during gameplay.
+    /// </summary>
+    public void NotifyUiScreen(UIFadeTransition.ScreenId screen)
+    {
+        bool gameplay = screen == UIFadeTransition.ScreenId.Gameplay;
+        SetBannerAllowed(gameplay);
+    }
+
+    public void SetBannerAllowed(bool allowed)
+    {
+        bannerAllowedForCurrentScreen = allowed;
+        if (allowed)
+            ShowBanner();
+        else
+            HideBanner();
+    }
+
+    public float GetFullscreenCooldownRemainingSeconds()
+    {
+        if (lastFullscreenAdUnix <= 0)
+            return 0f;
+
+        long now = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+        float elapsed = now - lastFullscreenAdUnix;
+        return Mathf.Max(0f, fullscreenAdCooldownSeconds - elapsed);
+    }
+
+    public bool IsFullscreenCooldownElapsed()
+    {
+        return GetFullscreenCooldownRemainingSeconds() <= 0.01f;
+    }
+
+    // -------------------------------------------------------------------------
+    // Banner
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Loads a bottom-anchored banner (does not show until <see cref="ShowBanner"/>).
+    /// </summary>
+    public void LoadBanner()
+    {
+        bannerLoadRequested = true;
+
+        if (!IsInitialized || !IsOnline)
+            return;
+
+#if UNITY_ADS
+        if (adsBridge == null)
+            return;
+
+        adsBridge.LoadBanner(bannerAdUnitId, bannerPosition);
+#else
+        IsBannerReady = true;
+        OnAdLoaded?.Invoke(bannerAdUnitId);
+#endif
+    }
+
+    /// <summary>
+    /// Shows the banner at the bottom during gameplay. No-ops safely if offline/not loaded.
+    /// </summary>
+    public void ShowBanner()
+    {
+        if (!showBannerDuringGameplay || !bannerAllowedForCurrentScreen || !IsOnline)
+        {
+            HideBanner();
+            return;
+        }
+
+        if (!IsInitialized)
+        {
+            Debug.LogWarning("AdManager: ShowBanner skipped — SDK not initialized.");
+            return;
+        }
+
+        if (!IsBannerReady)
+        {
+            LoadBanner();
+#if !UNITY_ADS
+            if (bannerAllowedForCurrentScreen && IsOnline)
+            {
+                ShowMockBanner();
+                IsBannerVisible = true;
+            }
+#endif
+            return;
+        }
+
+#if UNITY_ADS
+        try
+        {
+            Advertisement.Banner.Show(bannerAdUnitId);
+            IsBannerVisible = true;
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("AdManager: ShowBanner failed — " + e.Message);
+            OnAdFailedToLoad?.Invoke(bannerAdUnitId, e.Message);
+        }
+#else
+        ShowMockBanner();
+        IsBannerVisible = true;
+#endif
+    }
+
+    /// <summary>
+    /// Hides the banner (e.g. Game Over / menus) without destroying the loaded creative.
+    /// </summary>
+    public void HideBanner()
+    {
+#if UNITY_ADS
+        try
+        {
+            if (Advertisement.Banner.isLoaded)
+                Advertisement.Banner.Hide(false);
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("AdManager: HideBanner failed — " + e.Message);
+        }
+#else
+        if (mockBanner != null)
+            mockBanner.SetActive(false);
+#endif
+        IsBannerVisible = false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Interstitial
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Full-screen interstitial for non-disruptive transitions (e.g. Game Over).
+    /// Always invokes <paramref name="onComplete"/> immediately when offline/unready
+    /// so the player never sits on a black loading screen.
     /// </summary>
     public void ShowInterstitial(Action onComplete = null)
     {
         pendingInterstitialComplete = onComplete;
 
-        if (!IsInitialized || !interstitialReady)
+        if (!IsOnline)
         {
-            Debug.LogWarning("AdManager: Interstitial not ready — skipping.");
+            Debug.Log("AdManager: Interstitial suppressed — offline.");
             FinishInterstitial(completed: false);
             return;
         }
 
+        if (!IsInitialized || !interstitialReady)
+        {
+            Debug.LogWarning("AdManager: Interstitial not ready — skipping (game continues).");
+            OnAdFailedToLoad?.Invoke(interstitialAdUnitId, "Interstitial not loaded");
+            FinishInterstitial(completed: false);
+            PrefetchAdsIfOnline();
+            return;
+        }
+
 #if UNITY_ADS
-        BeginAdPresentation(interstitialAdUnitId);
+        BeginAdPresentation();
         adsBridge.Show(interstitialAdUnitId);
 #else
-        StartCoroutine(MockShowAd(interstitialAdUnitId, grantReward: false, isInterstitial: true));
+        StartCoroutine(MockShowFullscreen(interstitialAdUnitId, grantReward: false));
+#endif
+    }
+
+    public void LoadInterstitial()
+    {
+        if (!IsInitialized || !IsOnline)
+            return;
+
+#if UNITY_ADS
+        if (adsBridge != null)
+            adsBridge.Load(interstitialAdUnitId);
+#else
+        SetInterstitialReady(true);
+        OnAdLoaded?.Invoke(interstitialAdUnitId);
 #endif
     }
 
     /// <summary>
-    /// Shows a rewarded video. <paramref name="onRewarded"/> runs only if the user earns the reward.
+    /// Rewarded video. Offline / unload paths fail fast with no UI stall.
     /// </summary>
     public void ShowRewarded(Action onRewarded, Action onFailedOrSkipped = null)
     {
         pendingRewardedSuccess = onRewarded;
         pendingRewardedFail = onFailedOrSkipped;
 
+        if (!IsOnline)
+        {
+            Debug.Log("AdManager: Rewarded suppressed — offline.");
+            OnAdFailedToLoad?.Invoke(rewardedAdUnitId, "Device offline");
+            InvokeRewardedFail();
+            return;
+        }
+
         if (!IsInitialized || !rewardedReady)
         {
-            Debug.LogWarning("AdManager: Rewarded ad not ready.");
+            Debug.LogWarning("AdManager: Rewarded ad not ready — benefit not granted.");
             OnAdFailedToLoad?.Invoke(rewardedAdUnitId, "Rewarded ad not loaded");
-            pendingRewardedFail?.Invoke();
-            ClearRewardedCallbacks();
+            InvokeRewardedFail();
+            PrefetchAdsIfOnline();
             return;
         }
 
 #if UNITY_ADS
-        BeginAdPresentation(rewardedAdUnitId);
+        BeginAdPresentation();
         adsBridge.Show(rewardedAdUnitId);
 #else
-        StartCoroutine(MockShowAd(rewardedAdUnitId, grantReward: true, isInterstitial: false));
-#endif
-    }
-
-    public void LoadInterstitial()
-    {
-#if UNITY_ADS
-        if (adsBridge != null)
-            adsBridge.Load(interstitialAdUnitId);
-#else
-        interstitialReady = true;
-        OnAdLoaded?.Invoke(interstitialAdUnitId);
+        StartCoroutine(MockShowFullscreen(rewardedAdUnitId, grantReward: true));
 #endif
     }
 
     public void LoadRewarded()
     {
+        if (!IsInitialized || !IsOnline)
+            return;
+
 #if UNITY_ADS
         if (adsBridge != null)
             adsBridge.Load(rewardedAdUnitId);
 #else
-        rewardedReady = true;
+        SetRewardedReady(true);
         OnAdLoaded?.Invoke(rewardedAdUnitId);
 #endif
     }
+
+    /// <summary>
+    /// Background prefetch while online so Game Over can show ads instantly.
+    /// </summary>
+    public void PrefetchAdsIfOnline()
+    {
+        if (!IsOnline || !IsInitialized)
+            return;
+
+        if (!interstitialReady)
+            LoadInterstitial();
+        if (!rewardedReady)
+            LoadRewarded();
+        if ((loadBannerOnInit || bannerLoadRequested) && !IsBannerReady)
+            LoadBanner();
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal handlers
+    // -------------------------------------------------------------------------
 
     internal void HandleInitialized()
     {
         IsInitialized = true;
         Debug.Log("AdManager: Initialization complete.");
+
         LoadInterstitial();
         LoadRewarded();
+
+        if (loadBannerOnInit || bannerLoadRequested)
+            LoadBanner();
     }
 
     internal void HandleInitializationFailed(string message)
@@ -190,20 +488,39 @@ public class AdManager : MonoBehaviour
     internal void HandleAdLoaded(string adUnitId)
     {
         if (adUnitId == interstitialAdUnitId)
-            interstitialReady = true;
-        if (adUnitId == rewardedAdUnitId)
-            rewardedReady = true;
+            SetInterstitialReady(true);
+        else if (adUnitId == rewardedAdUnitId)
+            SetRewardedReady(true);
+        else if (adUnitId == bannerAdUnitId)
+            IsBannerReady = true;
 
         Debug.Log($"AdManager: OnAdLoaded — {adUnitId}");
         OnAdLoaded?.Invoke(adUnitId);
+
+        if (adUnitId == bannerAdUnitId && bannerAllowedForCurrentScreen && showBannerDuringGameplay && !IsBannerVisible)
+            ShowBanner();
     }
 
     internal void HandleAdFailedToLoad(string adUnitId, string error)
     {
         if (adUnitId == interstitialAdUnitId)
-            interstitialReady = false;
-        if (adUnitId == rewardedAdUnitId)
-            rewardedReady = false;
+        {
+            SetInterstitialReady(false);
+            if (IsOnline)
+                ScheduleRetry(ref interstitialRetryRoutine, LoadInterstitial);
+        }
+        else if (adUnitId == rewardedAdUnitId)
+        {
+            SetRewardedReady(false);
+            if (IsOnline)
+                ScheduleRetry(ref rewardedRetryRoutine, LoadRewarded);
+        }
+        else if (adUnitId == bannerAdUnitId)
+        {
+            IsBannerReady = false;
+            if (IsOnline)
+                ScheduleRetry(ref bannerRetryRoutine, LoadBanner);
+        }
 
         Debug.LogWarning($"AdManager: OnAdFailedToLoad — {adUnitId}: {error}");
         OnAdFailedToLoad?.Invoke(adUnitId, error);
@@ -218,30 +535,125 @@ public class AdManager : MonoBehaviour
 
         if (adUnitId == interstitialAdUnitId)
         {
-            interstitialReady = false;
+            SetInterstitialReady(false);
             FinishInterstitial(completed);
-            LoadInterstitial();
+            PrefetchAdsIfOnline();
             return;
         }
 
         if (adUnitId == rewardedAdUnitId)
         {
-            rewardedReady = false;
-            if (rewarded && completed)
-                pendingRewardedSuccess?.Invoke();
-            else
-                pendingRewardedFail?.Invoke();
+            SetRewardedReady(false);
 
-            ClearRewardedCallbacks();
-            LoadRewarded();
+            if (rewarded && completed)
+            {
+                OnUserEarnedReward?.Invoke(adUnitId);
+                Action success = pendingRewardedSuccess;
+                ClearRewardedCallbacks();
+                success?.Invoke();
+            }
+            else
+            {
+                InvokeRewardedFail();
+            }
+
+            PrefetchAdsIfOnline();
         }
+    }
+
+    private IEnumerator ConnectivityMonitor()
+    {
+        var wait = new WaitForSecondsRealtime(Mathf.Max(1f, connectivityPollSeconds));
+        while (true)
+        {
+            HandleConnectivityChanged(forcePrefetch: false);
+            yield return wait;
+        }
+    }
+
+    private void HandleConnectivityChanged(bool forcePrefetch)
+    {
+        bool online = IsOnline;
+        if (online != wasOnline || forcePrefetch)
+        {
+            if (online && (!wasOnline || forcePrefetch))
+            {
+                Debug.Log("AdManager: Online — prefetching ads into cache.");
+                PrefetchAdsIfOnline();
+            }
+            else if (!online)
+            {
+                Debug.Log("AdManager: Offline — suppressing ad loads/shows.");
+                HideBanner();
+                SetInterstitialReady(false);
+                SetRewardedReady(false);
+                IsBannerReady = false;
+            }
+
+            wasOnline = online;
+        }
+        else if (online)
+        {
+            // Keep cache warm while online.
+            PrefetchAdsIfOnline();
+        }
+
+        NotifyRewardedAvailabilityChanged();
+    }
+
+    private void SetInterstitialReady(bool ready)
+    {
+        interstitialReady = ready;
+    }
+
+    private void SetRewardedReady(bool ready)
+    {
+        if (rewardedReady == ready)
+        {
+            NotifyRewardedAvailabilityChanged();
+            return;
+        }
+
+        rewardedReady = ready;
+        NotifyRewardedAvailabilityChanged();
+    }
+
+    private void NotifyRewardedAvailabilityChanged()
+    {
+        bool available = CanOfferRewardedAd;
+        if (available == lastReportedRewardedAvailability)
+            return;
+
+        lastReportedRewardedAvailability = available;
+        OnRewardedAvailabilityChanged?.Invoke(available);
     }
 
     private void FinishInterstitial(bool completed)
     {
         Action callback = pendingInterstitialComplete;
         pendingInterstitialComplete = null;
-        callback?.Invoke();
+        try
+        {
+            callback?.Invoke();
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+        }
+    }
+
+    private void InvokeRewardedFail()
+    {
+        Action fail = pendingRewardedFail;
+        ClearRewardedCallbacks();
+        try
+        {
+            fail?.Invoke();
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+        }
     }
 
     private void ClearRewardedCallbacks()
@@ -250,16 +662,20 @@ public class AdManager : MonoBehaviour
         pendingRewardedFail = null;
     }
 
-    private void BeginAdPresentation(string adUnitId)
+    private void BeginAdPresentation()
     {
         IsShowingAd = true;
         previousTimeScale = Time.timeScale;
-        previousAudioPause = AudioListener.pause;
+
+        MarkFullscreenAdShown();
 
         if (pauseTimeScaleDuringAds)
             Time.timeScale = 0f;
 
-        if (pauseAudioDuringAds)
+        if (muteBgmDuringFullscreenAds && AudioManager.Instance != null)
+            AudioManager.Instance.SetMutedForFullscreenAd(true);
+
+        if (pauseAudioListenerDuringAds)
             AudioListener.pause = true;
     }
 
@@ -270,8 +686,52 @@ public class AdManager : MonoBehaviour
         if (pauseTimeScaleDuringAds)
             Time.timeScale = previousTimeScale > 0f ? previousTimeScale : 1f;
 
-        if (pauseAudioDuringAds)
-            AudioListener.pause = previousAudioPause;
+        if (muteBgmDuringFullscreenAds && AudioManager.Instance != null)
+            AudioManager.Instance.SetMutedForFullscreenAd(false);
+
+        if (pauseAudioListenerDuringAds)
+            AudioListener.pause = false;
+    }
+
+    private void MarkFullscreenAdShown()
+    {
+        lastFullscreenAdUnix = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+        PlayerPrefs.SetString(PrefsLastFullscreenAdUnix, lastFullscreenAdUnix.ToString());
+        PlayerPrefs.Save();
+    }
+
+    private void LoadFrequencyCapState()
+    {
+        gameOverCount = PlayerPrefs.GetInt(PrefsGameOverCount, 0);
+        string raw = PlayerPrefs.GetString(PrefsLastFullscreenAdUnix, "0");
+        if (!long.TryParse(raw, out lastFullscreenAdUnix))
+            lastFullscreenAdUnix = 0;
+    }
+
+    private void ScheduleRetry(ref Coroutine routine, Action loadAction)
+    {
+        if (routine != null)
+            StopCoroutine(routine);
+        routine = StartCoroutine(RetryLoadAfterDelay(loadAction));
+    }
+
+    private IEnumerator RetryLoadAfterDelay(Action loadAction)
+    {
+        yield return new WaitForSecondsRealtime(Mathf.Max(1f, failedLoadRetrySeconds));
+        if (IsOnline)
+            loadAction?.Invoke();
+    }
+
+    private void ApplyPlatformAdUnitDefaults()
+    {
+#if UNITY_IOS
+        if (bannerAdUnitId == "Banner_Android")
+            bannerAdUnitId = "Banner_iOS";
+        if (rewardedAdUnitId == "Rewarded_Android")
+            rewardedAdUnitId = "Rewarded_iOS";
+        if (interstitialAdUnitId == "Interstitial_Android")
+            interstitialAdUnitId = "Interstitial_iOS";
+#endif
     }
 
     private string GetPlatformGameId()
@@ -284,23 +744,56 @@ public class AdManager : MonoBehaviour
     }
 
 #if !UNITY_ADS
-    private IEnumerator MockShowAd(string adUnitId, bool grantReward, bool isInterstitial)
+    private IEnumerator MockShowFullscreen(string adUnitId, bool grantReward)
     {
-        BeginAdPresentation(adUnitId);
-        // Unscaled wait so pause doesn't freeze the mock.
+        BeginAdPresentation();
         yield return new WaitForSecondsRealtime(0.75f);
         HandleAdShowComplete(adUnitId, completed: true, rewarded: grantReward);
+    }
+
+    private void ShowMockBanner()
+    {
+        if (mockBanner == null)
+        {
+            mockBanner = new GameObject("MockAdBannerCanvas", typeof(Canvas), typeof(UnityEngine.UI.CanvasScaler));
+            var canvas = mockBanner.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 40;
+
+            var bar = new GameObject("Banner", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            bar.transform.SetParent(mockBanner.transform, false);
+            var rt = bar.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.sizeDelta = new Vector2(0f, 100f);
+            rt.anchoredPosition = Vector2.zero;
+            bar.GetComponent<UnityEngine.UI.Image>().color = new Color(0.1f, 0.1f, 0.12f, 0.85f);
+
+            var labelGo = new GameObject("Label", typeof(RectTransform), typeof(UnityEngine.UI.Text));
+            labelGo.transform.SetParent(bar.transform, false);
+            var labelRt = labelGo.GetComponent<RectTransform>();
+            labelRt.anchorMin = Vector2.zero;
+            labelRt.anchorMax = Vector2.one;
+            labelRt.offsetMin = Vector2.zero;
+            labelRt.offsetMax = Vector2.zero;
+            var text = labelGo.GetComponent<UnityEngine.UI.Text>();
+            text.text = "Ad Banner (Mock)";
+            text.alignment = TextAnchor.MiddleCenter;
+            text.color = Color.white;
+            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            text.raycastTarget = false;
+        }
+
+        mockBanner.SetActive(true);
     }
 #endif
 
 #if UNITY_ADS
-    /// <summary>
-    /// Thin bridge around UnityEngine.Advertisements so the rest of AdManager stays readable.
-    /// </summary>
     private sealed class UnityAdsBridge :
-        UnityEngine.Advertisements.IUnityAdsInitializationListener,
-        UnityEngine.Advertisements.IUnityAdsLoadListener,
-        UnityEngine.Advertisements.IUnityAdsShowListener
+        IUnityAdsInitializationListener,
+        IUnityAdsLoadListener,
+        IUnityAdsShowListener
     {
         private readonly AdManager owner;
 
@@ -311,17 +804,30 @@ public class AdManager : MonoBehaviour
 
         public void Initialize(string gameId, bool testMode)
         {
-            UnityEngine.Advertisements.Advertisement.Initialize(gameId, testMode, this);
+            Advertisement.Initialize(gameId, testMode, this);
         }
 
         public void Load(string adUnitId)
         {
-            UnityEngine.Advertisements.Advertisement.Load(adUnitId, this);
+            Advertisement.Load(adUnitId, this);
         }
 
         public void Show(string adUnitId)
         {
-            UnityEngine.Advertisements.Advertisement.Show(adUnitId, this);
+            Advertisement.Show(adUnitId, this);
+        }
+
+        public void LoadBanner(string adUnitId, BannerPosition position)
+        {
+            Advertisement.Banner.SetPosition(position);
+
+            var options = new BannerLoadOptions
+            {
+                loadCallback = () => owner.HandleAdLoaded(adUnitId),
+                errorCallback = message => owner.HandleAdFailedToLoad(adUnitId, message ?? "Banner load error")
+            };
+
+            Advertisement.Banner.Load(adUnitId, options);
         }
 
         public void OnInitializationComplete()
@@ -329,9 +835,7 @@ public class AdManager : MonoBehaviour
             owner.HandleInitialized();
         }
 
-        public void OnInitializationFailed(
-            UnityEngine.Advertisements.UnityAdsInitializationError error,
-            string message)
+        public void OnInitializationFailed(UnityAdsInitializationError error, string message)
         {
             owner.HandleInitializationFailed($"{error}: {message}");
         }
@@ -341,19 +845,14 @@ public class AdManager : MonoBehaviour
             owner.HandleAdLoaded(adUnitId);
         }
 
-        public void OnUnityAdsFailedToLoad(
-            string adUnitId,
-            UnityEngine.Advertisements.UnityAdsLoadError error,
-            string message)
+        public void OnUnityAdsFailedToLoad(string adUnitId, UnityAdsLoadError error, string message)
         {
             owner.HandleAdFailedToLoad(adUnitId, $"{error}: {message}");
         }
 
-        public void OnUnityAdsShowFailure(
-            string adUnitId,
-            UnityEngine.Advertisements.UnityAdsShowError error,
-            string message)
+        public void OnUnityAdsShowFailure(string adUnitId, UnityAdsShowError error, string message)
         {
+            Debug.LogWarning($"AdManager: Show failure {adUnitId} — {error}: {message}");
             owner.HandleAdShowComplete(adUnitId, completed: false, rewarded: false);
         }
 
@@ -361,13 +860,10 @@ public class AdManager : MonoBehaviour
 
         public void OnUnityAdsShowClick(string adUnitId) { }
 
-        public void OnUnityAdsShowComplete(
-            string adUnitId,
-            UnityEngine.Advertisements.UnityAdsShowCompletionState showCompletionState)
+        public void OnUnityAdsShowComplete(string adUnitId, UnityAdsShowCompletionState showCompletionState)
         {
-            bool completed = showCompletionState == UnityEngine.Advertisements.UnityAdsShowCompletionState.COMPLETED;
-            bool rewarded = completed; // rewarded placements only grant on COMPLETED
-            owner.HandleAdShowComplete(adUnitId, completed, rewarded);
+            bool completed = showCompletionState == UnityAdsShowCompletionState.COMPLETED;
+            owner.HandleAdShowComplete(adUnitId, completed, rewarded: completed);
         }
     }
 #endif

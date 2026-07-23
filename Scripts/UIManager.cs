@@ -61,6 +61,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI gameOverYearsText;
     [SerializeField] private Button playAgainButton;
     [SerializeField] private Button secondChanceButton;
+    [SerializeField] private Button leaderboardButton;
 
     [Header("Choice Hint Fade")]
     [Tooltip("Optional. If unset, the TMP text color alpha is faded instead.")]
@@ -136,35 +137,48 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Wires the Rewarded Video "Second Chance" button.
+    /// Wires the Rewarded Video "Watch Ad to Continue" button.
     /// </summary>
     public void BindSecondChance(UnityEngine.Events.UnityAction onSecondChance)
     {
+        EnsureSecondChanceButton();
+
         if (secondChanceButton == null || onSecondChance == null)
             return;
+
+        TextMeshProUGUI label = secondChanceButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+            label.text = "Watch Ad to Continue";
 
         secondChanceButton.onClick.RemoveAllListeners();
         secondChanceButton.onClick.AddListener(PlayButtonClickSfx);
         secondChanceButton.onClick.AddListener(onSecondChance);
     }
 
-    private static void PlayButtonClickSfx()
-    {
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayButtonClick();
-    }
-
     /// <summary>
-    /// Enables/disables the Second Chance button (e.g. already used this death).
+    /// Enables/disables the Second Chance button. When unavailable, the button is hidden
+    /// so the panel shows standard Game Over (Play Again only).
     /// </summary>
     public void SetSecondChanceAvailable(bool available)
     {
-        if (secondChanceButton != null)
-            secondChanceButton.interactable = available;
+        EnsureSecondChanceButton();
+        if (secondChanceButton == null)
+            return;
+
+        // Hide completely (not just non-interactable) so Game Over layout stays clean offline.
+        secondChanceButton.gameObject.SetActive(available);
+        secondChanceButton.interactable = available;
+
+        var layout = secondChanceButton.GetComponent<UnityEngine.UI.LayoutElement>();
+        if (layout != null)
+        {
+            layout.ignoreLayout = !available;
+            layout.preferredHeight = available ? 84f : 0f;
+        }
     }
 
     /// <summary>
-    /// Shows the Game Over panel with the specific death message for this failure.
+    /// Shows the Game Over panel with Play Again and optional Watch Ad to Continue.
     /// </summary>
     public void ShowGameOver(string deathMessage, int yearsRuled, int longestReign, bool secondChanceAvailable = true)
     {
@@ -173,10 +187,48 @@ public class UIManager : MonoBehaviour
 
         NoAllocText.SetGameOverYears(gameOverYearsText, yearsRuled, longestReign);
 
+        if (playAgainButton != null)
+            playAgainButton.gameObject.SetActive(true);
+
         SetSecondChanceAvailable(secondChanceAvailable);
+
+        if (leaderboardButton != null)
+            leaderboardButton.gameObject.SetActive(true);
 
         if (gameOverPanel != null)
             gameOverPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Wires the Google Play leaderboard button on the Game Over panel.
+    /// </summary>
+    public void BindLeaderboard(UnityEngine.Events.UnityAction onShowLeaderboard)
+    {
+        EnsureLeaderboardButton();
+
+        if (leaderboardButton == null || onShowLeaderboard == null)
+            return;
+
+        leaderboardButton.onClick.RemoveAllListeners();
+        leaderboardButton.onClick.AddListener(PlayButtonClickSfx);
+        leaderboardButton.onClick.AddListener(onShowLeaderboard);
+        leaderboardButton.gameObject.SetActive(true);
+    }
+
+    /// <summary>
+    /// Shows/hides the leaderboard button (e.g. Android-only).
+    /// </summary>
+    public void SetLeaderboardButtonVisible(bool visible)
+    {
+        EnsureLeaderboardButton();
+        if (leaderboardButton != null)
+            leaderboardButton.gameObject.SetActive(visible);
+    }
+
+    private static void PlayButtonClickSfx()
+    {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
     }
 
     /// <summary>
@@ -480,5 +532,67 @@ public class UIManager : MonoBehaviour
     private static float ClampStat(int value)
     {
         return Mathf.Clamp(value, StatMin, StatMax);
+    }
+
+    private void EnsureLeaderboardButton()
+    {
+        if (leaderboardButton != null || gameOverPanel == null)
+            return;
+
+        leaderboardButton = CreateGameOverButton(
+            "LeaderboardButton",
+            "Leaderboard",
+            new Vector2(0f, 36f),
+            new Color(0.16f, 0.28f, 0.22f, 0.95f));
+    }
+
+    private void EnsureSecondChanceButton()
+    {
+        if (secondChanceButton != null || gameOverPanel == null)
+            return;
+
+        // Place above Play Again / Leaderboard so both actions are visible together.
+        secondChanceButton = CreateGameOverButton(
+            "SecondChanceButton",
+            "Watch Ad to Continue",
+            new Vector2(0f, 140f),
+            new Color(0.28f, 0.22f, 0.12f, 0.95f));
+    }
+
+    private Button CreateGameOverButton(string objectName, string labelText, Vector2 anchoredPos, Color color)
+    {
+        var go = new GameObject(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        go.transform.SetParent(gameOverPanel.transform, false);
+
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0f);
+        rt.anchorMax = new Vector2(0.5f, 0f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.sizeDelta = new Vector2(480f, 84f);
+        rt.anchoredPosition = anchoredPos;
+
+        go.GetComponent<Image>().color = color;
+        var button = go.GetComponent<Button>();
+
+        var layout = go.AddComponent<UnityEngine.UI.LayoutElement>();
+        layout.preferredHeight = 84f;
+        layout.flexibleWidth = 1f;
+
+        var labelGo = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+        labelGo.transform.SetParent(go.transform, false);
+        var labelRt = labelGo.GetComponent<RectTransform>();
+        labelRt.anchorMin = Vector2.zero;
+        labelRt.anchorMax = Vector2.one;
+        labelRt.offsetMin = Vector2.zero;
+        labelRt.offsetMax = Vector2.zero;
+
+        var label = labelGo.GetComponent<TextMeshProUGUI>();
+        label.text = labelText;
+        label.fontSize = 30f;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color(0.95f, 0.92f, 0.86f, 1f);
+        label.raycastTarget = false;
+
+        return button;
     }
 }
