@@ -32,6 +32,13 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject armyChangeIcon;
     [SerializeField] private GameObject wealthChangeIcon;
 
+    [Header("Colorblind Shape Indicators (+ / −)")]
+    [Tooltip("Optional. Auto-created beside each slider when Colorblind Mode is on.")]
+    [SerializeField] private TextMeshProUGUI religionSignText;
+    [SerializeField] private TextMeshProUGUI peopleSignText;
+    [SerializeField] private TextMeshProUGUI armySignText;
+    [SerializeField] private TextMeshProUGUI wealthSignText;
+
     [Header("Status Effect Icons (near each slider)")]
     [Tooltip("Shown while a lasting buff/debuff is active on that stat.")]
     [SerializeField] private GameObject religionBuffIcon;
@@ -55,8 +62,11 @@ public class UIManager : MonoBehaviour
     [Header("Score")]
     [SerializeField] private TextMeshProUGUI yearsRuledText;
     [SerializeField] private TextMeshProUGUI longestReignText;
+    [SerializeField] private TextMeshProUGUI eraText;
     [SerializeField] private string yearsRuledFormat = "Year {0}";
     [SerializeField] private string longestReignFormat = "Longest Reign: {0}";
+    [SerializeField] private string eraFormat = "{0}";
+    [SerializeField] private bool showDifficultyInEraLabel = false;
 
     [Header("Game Over Panel")]
     [SerializeField] private GameObject gameOverPanel;
@@ -94,6 +104,9 @@ public class UIManager : MonoBehaviour
 
     private int lastYearsRuled = int.MinValue;
     private int lastLongestReign = int.MinValue;
+    private int lastEra = int.MinValue;
+    private float lastDifficultyScale = float.NaN;
+    private float swipeDifficultyScale = 1f;
 
     private void OnEnable()
     {
@@ -374,12 +387,45 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Updates the era label (optional). DifficultyScale is shown when enabled on this component.
+    /// </summary>
+    public void UpdateEra(int era, float difficultyScale)
+    {
+        swipeDifficultyScale = difficultyScale;
+
+        if (eraText == null)
+            return;
+
+        if (era == lastEra && Mathf.Approximately(difficultyScale, lastDifficultyScale))
+            return;
+
+        lastEra = era;
+        lastDifficultyScale = difficultyScale;
+
+        string name = EraProgression.GetEraDisplayName(era);
+        if (showDifficultyInEraLabel)
+            eraText.text = string.Format(eraFormat, $"{name}  ·  ×{difficultyScale:0.0}");
+        else
+            eraText.text = string.Format(eraFormat, name);
+    }
+
+    /// <summary>
     /// Updates choice-text fade and stat-change icons from the current drag amount.
     /// <paramref name="normalizedSwipe"/> is in [-1, 1] (negative = left).
     /// Hints appear once |normalized| passes 30% of the swipe threshold.
     /// </summary>
     public void UpdateSwipeFeedback(float normalizedSwipe)
     {
+        UpdateSwipeFeedback(normalizedSwipe, swipeDifficultyScale);
+    }
+
+    /// <summary>
+    /// Same as <see cref="UpdateSwipeFeedback(float)"/>, with an explicit difficulty scale for previews.
+    /// </summary>
+    public void UpdateSwipeFeedback(float normalizedSwipe, float difficultyScale)
+    {
+        swipeDifficultyScale = difficultyScale;
+
         float abs = Mathf.Abs(normalizedSwipe);
         bool pastHintThreshold = abs >= HintRevealNormalized;
 
@@ -397,11 +443,12 @@ public class UIManager : MonoBehaviour
         StatModifiers preview = null;
         if (pastHintThreshold && currentCard != null)
         {
-            preview = draggingLeft
+            StatModifiers raw = draggingLeft
                 ? currentCard.leftChoiceModifiers
                 : draggingRight
                     ? currentCard.rightChoiceModifiers
                     : null;
+            preview = raw != null ? raw.CreateScaled(difficultyScale) : null;
         }
 
         SetStatChangeIndicators(preview);
@@ -459,10 +506,95 @@ public class UIManager : MonoBehaviour
 
     private void SetStatChangeIndicators(StatModifiers modifiers)
     {
+        bool colorblind = AccessibilityManager.Instance != null && AccessibilityManager.Instance.ColorblindMode;
+
+        if (colorblind)
+        {
+            EnsureColorblindSignLabels();
+
+            SetIconActive(religionChangeIcon, false);
+            SetIconActive(peopleChangeIcon, false);
+            SetIconActive(armyChangeIcon, false);
+            SetIconActive(wealthChangeIcon, false);
+
+            SetSignIndicator(religionSignText, modifiers != null ? modifiers.religion : 0);
+            SetSignIndicator(peopleSignText, modifiers != null ? modifiers.people : 0);
+            SetSignIndicator(armySignText, modifiers != null ? modifiers.army : 0);
+            SetSignIndicator(wealthSignText, modifiers != null ? modifiers.wealth : 0);
+            return;
+        }
+
+        SetSignIndicator(religionSignText, 0);
+        SetSignIndicator(peopleSignText, 0);
+        SetSignIndicator(armySignText, 0);
+        SetSignIndicator(wealthSignText, 0);
+
         SetIconActive(religionChangeIcon, modifiers != null && modifiers.ModifiesReligion);
         SetIconActive(peopleChangeIcon, modifiers != null && modifiers.ModifiesPeople);
         SetIconActive(armyChangeIcon, modifiers != null && modifiers.ModifiesArmy);
         SetIconActive(wealthChangeIcon, modifiers != null && modifiers.ModifiesWealth);
+    }
+
+    private static void SetSignIndicator(TextMeshProUGUI label, int delta)
+    {
+        if (label == null)
+            return;
+
+        if (delta == 0)
+        {
+            if (label.gameObject.activeSelf)
+                label.gameObject.SetActive(false);
+            return;
+        }
+
+        if (!label.gameObject.activeSelf)
+            label.gameObject.SetActive(true);
+
+        label.text = delta > 0 ? "+" : "−";
+        label.color = delta > 0
+            ? new Color(0.95f, 0.95f, 0.95f, 1f)
+            : new Color(0.95f, 0.95f, 0.95f, 1f);
+    }
+
+    private void EnsureColorblindSignLabels()
+    {
+        religionSignText = EnsureSignLabel(religionSignText, religionSlider, "ReligionSign");
+        peopleSignText = EnsureSignLabel(peopleSignText, peopleSlider, "PeopleSign");
+        armySignText = EnsureSignLabel(armySignText, armySlider, "ArmySign");
+        wealthSignText = EnsureSignLabel(wealthSignText, wealthSlider, "WealthSign");
+    }
+
+    private static TextMeshProUGUI EnsureSignLabel(TextMeshProUGUI existing, Slider slider, string name)
+    {
+        if (existing != null)
+            return existing;
+        if (slider == null)
+            return null;
+
+        RectTransform parent = slider.transform as RectTransform;
+        if (parent == null)
+            return null;
+
+        var go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
+        go.transform.SetParent(parent, false);
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 0.5f);
+        rt.anchorMax = new Vector2(1f, 0.5f);
+        rt.pivot = new Vector2(0f, 0.5f);
+        rt.anchoredPosition = new Vector2(12f, 0f);
+        rt.sizeDelta = new Vector2(64f, 64f);
+
+        var tmp = go.GetComponent<TextMeshProUGUI>();
+        tmp.text = "";
+        tmp.fontSize = 42f;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+        tmp.raycastTarget = false;
+        tmp.outlineWidth = 0.25f;
+        tmp.outlineColor = Color.black;
+        go.SetActive(false);
+        return tmp;
     }
 
     private void SetChoiceHintAlpha(bool left, float alpha)

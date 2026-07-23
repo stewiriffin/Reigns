@@ -45,6 +45,18 @@
 
     { "key": "card.dragon_hoard.scenario", "value": "Survivors of the dragon war drag chests of scorched gold into the courtyard. The people cheer — the Church calls it cursed." },
     { "key": "card.dragon_hoard.left", "value": "Claim the hoard for the crown" },
-    { "key": "card.dragon_hoard.right", "value": "Consecrate and bury it" }
+    { "key": "card.dragon_hoard.right", "value": "Consecrate and bury it" },
+
+    { "key": "card.uprising.scenario", "value": "Hungry crowds fill the square, waving scorched banners. They demand grain from the royal stores — or blood from the guards." },
+    { "key": "card.uprising.left", "value": "Open the granaries" },
+    { "key": "card.uprising.right", "value": "Order the square cleared" },
+
+    { "key": "card.famine.scenario", "value": "Ash falls with the rain. Fields blacken and livestock die. Priests call it judgment; merchants sell moldy bread at a king's ransom." },
+    { "key": "card.famine.left", "value": "Lead a pilgrimage for mercy" },
+    { "key": "card.famine.right", "value": "Seize merchant stores by force" },
+
+    { "key": "card.empire.scenario", "value": "Envoys from a distant empire plant their banner at your gates. They offer 'protection' — or open war if you refuse." },
+    { "key": "card.empire.left", "value": "Muster every spear" },
+    { "key": "card.empire.right", "value": "Kneel and pay tribute" }
   ]
 }

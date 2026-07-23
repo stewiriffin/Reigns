@@ -4,6 +4,7 @@
       "id": "remote_sample_harvest_festival",
       "scenarioText": "The harvest festival needs a royal blessing.",
       "prerequisiteFlag": "",
+      "era": 1,
       "portraitResourcePath": "Characters/Diplomat/portrait",
       "voiceResourcePath": "Characters/Diplomat/voice",
       "leftChoiceText": "Attend and feast",

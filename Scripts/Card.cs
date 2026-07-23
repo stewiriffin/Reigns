@@ -20,6 +20,43 @@ public class StatModifiers
         stats.ModifyStats(religion, people, army, wealth);
     }
 
+    /// <summary>
+    /// Returns a new modifier set scaled by <paramref name="scale"/> (difficulty).
+    /// Zero stays zero; non-zero values keep their sign after rounding.
+    /// </summary>
+    public StatModifiers CreateScaled(float scale)
+    {
+        if (Mathf.Approximately(scale, 1f))
+        {
+            return new StatModifiers
+            {
+                religion = religion,
+                people = people,
+                army = army,
+                wealth = wealth
+            };
+        }
+
+        return new StatModifiers
+        {
+            religion = ScaleStat(religion, scale),
+            people = ScaleStat(people, scale),
+            army = ScaleStat(army, scale),
+            wealth = ScaleStat(wealth, scale)
+        };
+    }
+
+    private static int ScaleStat(int value, float scale)
+    {
+        if (value == 0)
+            return 0;
+
+        int scaled = Mathf.RoundToInt(value * scale);
+        if (scaled == 0)
+            return value > 0 ? 1 : -1;
+        return scaled;
+    }
+
     public bool ModifiesReligion => religion != 0;
     public bool ModifiesPeople => people != 0;
     public bool ModifiesArmy => army != 0;
@@ -46,6 +83,12 @@ public class Card
     /// Leave empty for base-deck cards that are always available.
     /// </summary>
     public string prerequisiteFlag;
+
+    /// <summary>
+    /// Era filter. 0 (or unset) = available in every era.
+    /// 1 / 2 / 3 = only drawn during that era (see <see cref="EraProgression"/>).
+    /// </summary>
+    public int era;
 
     /// <summary>
     /// Resources path to the character portrait sprite (no extension), e.g. "Characters/Priest/portrait".
@@ -110,6 +153,12 @@ public class Card
 
         if (!string.IsNullOrWhiteSpace(voiceResourcePath))
             speakingSound = Resources.Load<AudioClip>(voiceResourcePath);
+    }
+
+    /// <summary>True when this card may appear in the given era (0 era = always).</summary>
+    public bool IsAvailableInEra(int currentEra)
+    {
+        return era <= 0 || era == currentEra;
     }
 }
 

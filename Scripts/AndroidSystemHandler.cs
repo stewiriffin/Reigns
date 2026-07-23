@@ -19,6 +19,7 @@ public class AndroidSystemHandler : MonoBehaviour
     [SerializeField] private RectTransform pausePanelRoot;
     [SerializeField] private CanvasGroup pauseCanvasGroup;
     [SerializeField] private Button resumeButton;
+    [SerializeField] private Button settingsButton;
     [SerializeField] private Button quitToMenuButton;
     [SerializeField] private float pauseSlideDuration = 0.28f;
 
@@ -289,6 +290,12 @@ public class AndroidSystemHandler : MonoBehaviour
             resumeButton.onClick.AddListener(ResumeFromPauseMenu);
         }
 
+        if (settingsButton != null)
+        {
+            settingsButton.onClick.RemoveAllListeners();
+            settingsButton.onClick.AddListener(OpenSettingsFromPause);
+        }
+
         if (quitToMenuButton != null)
         {
             quitToMenuButton.onClick.RemoveAllListeners();
@@ -299,6 +306,14 @@ public class AndroidSystemHandler : MonoBehaviour
                     UIFadeTransition.Instance.SnapTo(UIFadeTransition.ScreenId.StartMenu);
             });
         }
+    }
+
+    private void OpenSettingsFromPause()
+    {
+        var settings = FindObjectOfType<SettingsMenu>();
+        if (settings == null)
+            settings = new GameObject("SettingsMenu").AddComponent<SettingsMenu>();
+        settings.Show();
     }
 
     private IEnumerator SlidePauseMenu(bool open, System.Action onComplete = null)
@@ -399,6 +414,8 @@ public class AndroidSystemHandler : MonoBehaviour
         pauseCanvasGroup = root.GetComponent<CanvasGroup>();
         Stretch(pausePanelRoot);
         root.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.72f);
+        if (root.GetComponent<AccessibleBackground>() == null)
+            root.AddComponent<AccessibleBackground>();
 
         var window = new GameObject("Window", typeof(RectTransform), typeof(Image));
         window.transform.SetParent(pausePanelRoot, false);
@@ -406,14 +423,17 @@ public class AndroidSystemHandler : MonoBehaviour
         windowRt.anchorMin = new Vector2(0.5f, 0.5f);
         windowRt.anchorMax = new Vector2(0.5f, 0.5f);
         windowRt.pivot = new Vector2(0.5f, 0.5f);
-        windowRt.sizeDelta = new Vector2(720f, 420f);
+        windowRt.sizeDelta = new Vector2(720f, 520f);
         window.GetComponent<Image>().color = new Color(0.1f, 0.09f, 0.08f, 0.98f);
+        if (window.GetComponent<AccessibleBackground>() == null)
+            window.AddComponent<AccessibleBackground>();
 
         CreateLabel(window.transform, "Paused", 44f, FontStyles.Bold,
             new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -36f), new Vector2(0f, 60f));
 
-        resumeButton = CreateMenuButton(window.transform, "Resume", new Vector2(0f, 40f));
-        quitToMenuButton = CreateMenuButton(window.transform, "Quit to Menu", new Vector2(0f, -70f));
+        resumeButton = CreateMenuButton(window.transform, "Resume", new Vector2(0f, 80f));
+        settingsButton = CreateMenuButton(window.transform, "Settings", new Vector2(0f, -20f));
+        quitToMenuButton = CreateMenuButton(window.transform, "Quit to Menu", new Vector2(0f, -120f));
 
         WireButtons();
         uiBuilt = true;

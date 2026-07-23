@@ -1,8 +1,11 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Audio;
 
 /// <summary>
 /// Singleton audio hub with separate BGM and SFX channels, volume buses, and BGM crossfades.
+/// Volume persistence is owned by <see cref="SettingsManager"/> when present;
+/// this class still applies runtime levels and optional AudioMixer group routing.
 /// </summary>
 public class AudioManager : MonoBehaviour
 {
@@ -10,9 +13,9 @@ public class AudioManager : MonoBehaviour
     public const string BusSfx = "SFX";
     public const string BusMaster = "Master";
 
-    private const string PrefsMaster = "Audio_MasterVolume";
-    private const string PrefsBgm = "Audio_BgmVolume";
-    private const string PrefsSfx = "Audio_SfxVolume";
+    private const string PrefsMaster = SettingsManager.PrefsMasterVolume;
+    private const string PrefsBgm = SettingsManager.PrefsBgmVolume;
+    private const string PrefsSfx = SettingsManager.PrefsSfxVolume;
 
     public static AudioManager Instance { get; private set; }
 
@@ -20,6 +23,8 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private AudioSource bgmSourceA;
     [SerializeField] private AudioSource bgmSourceB;
     [SerializeField] private AudioSource sfxSource;
+    [SerializeField] private AudioMixerGroup bgmMixerGroup;
+    [SerializeField] private AudioMixerGroup sfxMixerGroup;
 
     [Header("BGM")]
     [SerializeField] private float bgmCrossfadeDuration = 1f;
@@ -56,9 +61,20 @@ public class AudioManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         EnsureSources();
-        LoadVolumes();
+        if (SettingsManager.Instance != null)
+        {
+            masterVolume = SettingsManager.Instance.MasterVolume;
+            bgmVolume = SettingsManager.Instance.BgmVolume;
+            sfxVolume = SettingsManager.Instance.SfxVolume;
+        }
+        else
+        {
+            LoadVolumes();
+        }
+
         activeBgmSource = bgmSourceA;
         idleBgmSource = bgmSourceB;
+        ApplyMixerRouting();
         ApplyVolumes();
     }
 
@@ -143,7 +159,39 @@ public class AudioManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Routes BGM / SFX sources to mixer groups (null clears routing).
+    /// </summary>
+    public void BindMixerGroups(AudioMixerGroup bgmGroup, AudioMixerGroup sfxGroup)
+    {
+        bgmMixerGroup = bgmGroup;
+        sfxMixerGroup = sfxGroup;
+        ApplyMixerRouting();
+    }
+
+    /// <summary>
+    /// Applies all three volume buses. When <paramref name="persist"/> is false,
+    /// PlayerPrefs are left to SettingsManager.
+    /// </summary>
+    public void ApplyVolumeLevels(float master, float bgm, float sfx, bool persist = true)
+    {
+        masterVolume = Mathf.Clamp01(master);
+        bgmVolume = Mathf.Clamp01(bgm);
+        sfxVolume = Mathf.Clamp01(sfx);
+
+        if (persist)
+        {
+            PlayerPrefs.SetFloat(PrefsMaster, masterVolume);
+            PlayerPrefs.SetFloat(PrefsBgm, bgmVolume);
+            PlayerPrefs.SetFloat(PrefsSfx, sfxVolume);
+            PlayerPrefs.Save();
+        }
+
+        ApplyVolumes();
+    }
+
+    /// <summary>
     /// Sets a volume bus. <paramref name="bus"/> is "BGM", "SFX", or "Master" (case-insensitive).
+    /// Prefer SettingsManager for UI-driven changes.
     /// </summary>
     public void SetVolume(string bus, float volume)
     {
@@ -156,15 +204,33 @@ public class AudioManager : MonoBehaviour
             case "BGM":
             case "MUSIC":
                 bgmVolume = clamped;
+                if (SettingsManager.Instance != null)
+                {
+                    SettingsManager.Instance.SetBgmVolume(clamped);
+                    return;
+                }
+
                 PlayerPrefs.SetFloat(PrefsBgm, bgmVolume);
                 break;
             case "SFX":
             case "SOUND":
                 sfxVolume = clamped;
+                if (SettingsManager.Instance != null)
+                {
+                    SettingsManager.Instance.SetSfxVolume(clamped);
+                    return;
+                }
+
                 PlayerPrefs.SetFloat(PrefsSfx, sfxVolume);
                 break;
             case "MASTER":
                 masterVolume = clamped;
+                if (SettingsManager.Instance != null)
+                {
+                    SettingsManager.Instance.SetMasterVolume(clamped);
+                    return;
+                }
+
                 PlayerPrefs.SetFloat(PrefsMaster, masterVolume);
                 break;
             default:
@@ -312,18 +378,42 @@ public class AudioManager : MonoBehaviour
         sfxVolume = PlayerPrefs.GetFloat(PrefsSfx, sfxVolume);
     }
 
+    private void ApplyMixerRouting()
+    {
+        if (bgmSourceA != null)
+            bgmSourceA.outputAudioMixerGroup = bgmMixerGroup;
+        if (bgmSourceB != null)
+            bgmSourceB.outputAudioMixerGroup = bgmMixerGroup;
+        if (sfxSource != null)
+            sfxSource.outputAudioMixerGroup = sfxMixerGroup;
+    }
+
     private void ApplyVolumes()
     {
         if (activeBgmSource != null && activeBgmSource.isPlaying)
             activeBgmSource.volume = GetBgmOutputVolume() * bgmFadeMultiplier;
 
-        if (idleBgmSource != null && idleBgmSource.isPlaying)
-        {
-            // During crossfade, leave relative mix alone except master/bgm scale via next Apply on end.
-        }
+        if (sfxSource != null)
+            sfxSource.volume = 1f;
     }
 
-    private float GetBgmOutputVolume() =>
-        (mutedForFullscreenAd || mutedForAppPause) ? 0f : masterVolume * bgmVolume;
-    private float GetSfxOutputVolume() => masterVolume * sfxVolume;
+    private float GetBgmOutputVolume()
+    {
+        if (mutedForFullscreenAd || mutedForAppPause)
+            return 0f;
+
+        // Mixer path: exposed params own Master/BGM; keep source near unity gain.
+        if (bgmMixerGroup != null)
+            return 1f;
+
+        return masterVolume * bgmVolume;
+    }
+
+    private float GetSfxOutputVolume()
+    {
+        if (sfxMixerGroup != null)
+            return 1f;
+
+        return masterVolume * sfxVolume;
+    }
 }

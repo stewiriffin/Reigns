@@ -1,8 +1,11 @@
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 /// <summary>
 /// Pooled colored particle bursts near stat sliders (green = gain, red = loss).
-/// Prewarms systems once — no Instantiate/Destroy during the swipe resolve path.
+/// In Colorblind Mode, spawns explicit + / − shape labels instead of color-only flashes.
 /// </summary>
 public class StatFeedbackParticles : MonoBehaviour
 {
@@ -23,12 +26,18 @@ public class StatFeedbackParticles : MonoBehaviour
     [SerializeField] private Color gainColor = new Color(0.35f, 0.9f, 0.45f, 1f);
     [SerializeField] private Color lossColor = new Color(0.95f, 0.25f, 0.22f, 1f);
 
+    [Header("Colorblind shapes")]
+    [SerializeField] private float signLifetime = 0.7f;
+    [SerializeField] private float signRise = 48f;
+    [SerializeField] private int signPoolSize = 8;
+
     [SerializeField] private UIManager uiManager;
     [SerializeField] private Canvas parentCanvas;
     [SerializeField] private Material particleMaterial;
 
     private ObjectPool burstPool;
     private Transform poolRoot;
+    private readonly Queue<TextMeshProUGUI> signPool = new Queue<TextMeshProUGUI>();
     private static readonly Vector2 BurstAnchoredOffset = new Vector2(0f, 12f);
 
     private void Awake()
@@ -48,6 +57,7 @@ public class StatFeedbackParticles : MonoBehaviour
             parentCanvas = GetComponentInParent<Canvas>();
 
         BuildPool();
+        BuildSignPool();
     }
 
     private void OnDestroy()
@@ -78,6 +88,13 @@ public class StatFeedbackParticles : MonoBehaviour
         RectTransform anchor = ResolveAnchor(stat);
         if (anchor == null)
             return;
+
+        bool colorblind = AccessibilityManager.Instance != null && AccessibilityManager.Instance.ColorblindMode;
+        if (colorblind)
+        {
+            // FloatingStatText already shows signed magnitudes; skip color-only particle bursts.
+            return;
+        }
 
         Color color = delta > 0 ? gainColor : lossColor;
         int count = Mathf.Min(particleCount, 8 + Mathf.Abs(delta));
@@ -116,8 +133,31 @@ public class StatFeedbackParticles : MonoBehaviour
             burstPool.Release(go);
         }
 
-        // Template was only used for Instantiate; remove it from the hierarchy.
         Destroy(template);
+    }
+
+    private void BuildSignPool()
+    {
+        if (poolRoot == null)
+        {
+            poolRoot = new GameObject("StatParticlePool").transform;
+            poolRoot.SetParent(transform, false);
+        }
+
+        for (int i = 0; i < signPoolSize; i++)
+        {
+            var go = new GameObject("StatSign", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(CanvasGroup));
+            go.transform.SetParent(poolRoot, false);
+            var tmp = go.GetComponent<TextMeshProUGUI>();
+            tmp.fontSize = 48f;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.raycastTarget = false;
+            tmp.outlineWidth = 0.3f;
+            tmp.outlineColor = Color.black;
+            go.SetActive(false);
+            signPool.Enqueue(tmp);
+        }
     }
 
     private GameObject CreateBurstTemplate()
@@ -180,5 +220,68 @@ public class StatFeedbackParticles : MonoBehaviour
             lifetime,
             speed,
             burstRadius * 0.15f);
+    }
+
+    private void SpawnSign(RectTransform anchor, bool positive)
+    {
+        if (signPool.Count == 0)
+            BuildSignPool();
+
+        TextMeshProUGUI label = signPool.Count > 0 ? signPool.Dequeue() : null;
+        if (label == null)
+            return;
+
+        Transform parent = parentCanvas != null ? parentCanvas.transform : anchor;
+        label.transform.SetParent(parent, false);
+        label.gameObject.SetActive(true);
+        label.text = positive ? "+" : "−";
+        label.color = Color.white;
+
+        var rt = label.rectTransform;
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(80f, 80f);
+
+        Vector3 world = anchor.TransformPoint(new Vector3(BurstAnchoredOffset.x, BurstAnchoredOffset.y, 0f));
+        if (parent is RectTransform parentRt)
+        {
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                parentRt,
+                RectTransformUtility.WorldToScreenPoint(null, world),
+                null,
+                out Vector2 local);
+            rt.anchoredPosition = local;
+        }
+        else
+        {
+            rt.position = world;
+        }
+
+        var group = label.GetComponent<CanvasGroup>();
+        if (group == null)
+            group = label.gameObject.AddComponent<CanvasGroup>();
+        group.alpha = 1f;
+
+        StartCoroutine(AnimateSign(label, group, rt.anchoredPosition));
+    }
+
+    private IEnumerator AnimateSign(TextMeshProUGUI label, CanvasGroup group, Vector2 start)
+    {
+        float duration = Mathf.Max(0.1f, signLifetime);
+        float elapsed = 0f;
+        var rt = label.rectTransform;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            rt.anchoredPosition = start + new Vector2(0f, signRise * t);
+            group.alpha = 1f - t;
+            yield return null;
+        }
+
+        label.gameObject.SetActive(false);
+        label.transform.SetParent(poolRoot, false);
+        signPool.Enqueue(label);
     }
 }

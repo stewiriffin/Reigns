@@ -5,7 +5,7 @@ using UnityEngine;
 /// <summary>
 /// Main Reigns loop: draws cards, applies swipe choices to kingdom stats,
 /// discards the card, then either continues or shows Game Over.
-/// Tracks Years Ruled (score) and Longest Reign (PlayerPrefs high score).
+/// Tracks Years Ruled, eras, difficulty scaling, and Longest Reign (PlayerPrefs).
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -27,6 +27,15 @@ public class GameManager : MonoBehaviour
 
     [Header("Deck")]
     [SerializeField] private string cardsResourcePath = "Cards/event_cards";
+
+    [Header("Eras & Difficulty")]
+    [Tooltip("Years 0 through this value are Era 1.")]
+    [SerializeField] private int era1MaxYear = 10;
+    [Tooltip("Years (era1Max+1) through this value are Era 2; above is Era 3.")]
+    [SerializeField] private int era2MaxYear = 25;
+    [Tooltip("Stat impact grows by this fraction every N years (0.1 = +10%).")]
+    [SerializeField] private float difficultyIncreasePerDecade = 0.1f;
+    [SerializeField] private int difficultyYearsPerStep = 10;
 
     [Header("Death Messages")]
     [SerializeField] private string deathMessagesResourcePath = "Deaths/death_messages";
@@ -54,6 +63,15 @@ public class GameManager : MonoBehaviour
 
     /// <summary>Best Years Ruled across runs, loaded from PlayerPrefs.</summary>
     public int LongestReign { get; private set; }
+
+    /// <summary>Current era (1–3) derived from <see cref="YearsRuled"/>.</summary>
+    public int CurrentEra => EraProgression.GetEra(YearsRuled, era1MaxYear, era2MaxYear);
+
+    /// <summary>
+    /// Multiplier applied to choice stat deltas. Grows +10% every 10 years by default.
+    /// </summary>
+    public float DifficultyScale =>
+        EraProgression.GetDifficultyScale(YearsRuled, difficultyIncreasePerDecade, difficultyYearsPerStep);
 
     /// <summary>True when an in-progress run should be auto-saved.</summary>
     public bool CanAutoSave =>
@@ -123,8 +141,17 @@ public class GameManager : MonoBehaviour
         if (networkManager == null)
             networkManager = new GameObject("NetworkManager").AddComponent<NetworkManager>();
 
+        if (SettingsManager.Instance == null && FindObjectOfType<SettingsManager>() == null)
+            new GameObject("SettingsManager").AddComponent<SettingsManager>();
+
+        if (AccessibilityManager.Instance == null && FindObjectOfType<AccessibilityManager>() == null)
+            new GameObject("AccessibilityManager").AddComponent<AccessibilityManager>();
+
         if (FindObjectOfType<SettingsMenu>() == null)
             new GameObject("SettingsMenu").AddComponent<SettingsMenu>();
+
+        if (FindObjectOfType<FloatingStatText>() == null)
+            new GameObject("FloatingStatText").AddComponent<FloatingStatText>();
 
         if (FindObjectOfType<AndroidSystemHandler>() == null)
             new GameObject("AndroidSystemHandler").AddComponent<AndroidSystemHandler>();
@@ -452,6 +479,8 @@ public class GameManager : MonoBehaviour
         }
 
         LoadDeck();
+
+        YearsRuled = Mathf.Max(0, data.yearsRuled);
         RefillDrawPile();
 
         Card card = CardLoader.FindById(cardCatalog, data.currentCardId);
@@ -464,7 +493,6 @@ public class GameManager : MonoBehaviour
         // Avoid drawing the restored card immediately again from the random pile.
         RemoveFromDrawPileById(card.id);
 
-        YearsRuled = Mathf.Max(0, data.yearsRuled);
         kingdomStats.LoadState(data.religion, data.people, data.army, data.wealth);
         statusEffects.LoadFromSave(data.statusEffects);
 
@@ -554,6 +582,8 @@ public class GameManager : MonoBehaviour
                 Card card = deck[i];
                 if (card == null || string.IsNullOrEmpty(card.id))
                     continue;
+                if (!card.IsAvailableInEra(CurrentEra))
+                    continue;
                 if (inPile.Contains(card.id))
                     continue;
                 if (keepCardId != null && card.id == keepCardId)
@@ -568,8 +598,29 @@ public class GameManager : MonoBehaviour
     private void RefillDrawPile()
     {
         drawPile.Clear();
-        drawPile.AddRange(deck);
+
+        int era = CurrentEra;
+        for (int i = 0; i < deck.Count; i++)
+        {
+            Card card = deck[i];
+            if (card != null && card.IsAvailableInEra(era))
+                drawPile.Add(card);
+        }
+
+        // Safety: if an era has no tagged cards yet, fall back to the full unlocked deck.
+        if (drawPile.Count == 0)
+            drawPile.AddRange(deck);
+
         Shuffle(drawPile);
+    }
+
+    /// <summary>
+    /// When the era advances, rebuild the remaining draw pile so new-era cards can appear.
+    /// </summary>
+    private void OnEraAdvanced(int newEra)
+    {
+        RefillDrawPile();
+        Debug.Log($"GameManager: Advanced to {EraProgression.GetEraDisplayName(newEra)} (year {YearsRuled}).");
     }
 
     private void ShowNextCard()
@@ -791,10 +842,17 @@ public class GameManager : MonoBehaviour
         int beforeArmy = kingdomStats.Army;
         int beforeWealth = kingdomStats.Wealth;
 
-        if (StatFeedbackParticles.Instance != null)
-            StatFeedbackParticles.Instance.PlayChoiceFeedback(modifiers);
+        // Scale choice impact with run length (tutorial stays at 1×).
+        float scale = inTutorial ? 1f : DifficultyScale;
+        StatModifiers scaledModifiers = modifiers != null ? modifiers.CreateScaled(scale) : null;
 
-        modifiers?.Apply(kingdomStats);
+        if (FloatingStatText.Instance != null)
+            FloatingStatText.Instance.PlayChoiceFeedback(scaledModifiers);
+
+        if (StatFeedbackParticles.Instance != null)
+            StatFeedbackParticles.Instance.PlayChoiceFeedback(scaledModifiers);
+
+        scaledModifiers?.Apply(kingdomStats);
         statusEffects.AddRange(grantedEffects);
         TryGrantMetaFlag(unlockFlag);
         QueueForcedNextCard(nextCardId);
@@ -804,8 +862,12 @@ public class GameManager : MonoBehaviour
 
         if (!inTutorial)
         {
+            int eraBefore = CurrentEra;
             YearsRuled++;
             RefreshScoreHud();
+
+            if (CurrentEra != eraBefore)
+                OnEraAdvanced(CurrentEra);
 
             if (achievementManager != null)
             {
@@ -1139,7 +1201,7 @@ public class GameManager : MonoBehaviour
     private void HandleSwipeProgress(float normalized)
     {
         if (uiManager != null)
-            uiManager.UpdateSwipeFeedback(normalized);
+            uiManager.UpdateSwipeFeedback(normalized, inTutorial ? 1f : DifficultyScale);
     }
 
     private void RefreshScoreHud()
@@ -1149,6 +1211,7 @@ public class GameManager : MonoBehaviour
 
         uiManager.UpdateYearsRuled(YearsRuled);
         uiManager.UpdateLongestReign(LongestReign);
+        uiManager.UpdateEra(CurrentEra, DifficultyScale);
     }
 
     private void RefreshStatHud(bool immediate)

@@ -4,6 +4,7 @@
       "id": "plague_in_the_capital",
       "scenarioText": "card.plague.scenario",
       "prerequisiteFlag": "",
+      "era": 1,
       "portraitResourcePath": "Characters/Priest/portrait",
       "voiceResourcePath": "Characters/Priest/voice",
       "leftChoiceText": "card.plague.left",
@@ -35,6 +36,7 @@
       "id": "border_raiders",
       "scenarioText": "card.raiders.scenario",
       "prerequisiteFlag": "",
+      "era": 1,
       "portraitResourcePath": "Characters/General/portrait",
       "voiceResourcePath": "Characters/General/voice",
       "leftChoiceText": "card.raiders.left",
@@ -73,6 +75,7 @@
       "id": "royal_wedding",
       "scenarioText": "card.wedding.scenario",
       "prerequisiteFlag": "",
+      "era": 1,
       "portraitResourcePath": "Characters/Diplomat/portrait",
       "voiceResourcePath": "Characters/Diplomat/voice",
       "leftChoiceText": "card.wedding.left",
@@ -107,6 +110,7 @@
       "id": "traveling_hunter",
       "scenarioText": "card.hunter.scenario",
       "prerequisiteFlag": "",
+      "era": 2,
       "portraitResourcePath": "Characters/Hunter/portrait",
       "voiceResourcePath": "Characters/Hunter/voice",
       "leftChoiceText": "card.hunter.left",
@@ -134,6 +138,7 @@
       "id": "dragon_expedition_report",
       "scenarioText": "card.hunter_report.scenario",
       "prerequisiteFlag": "",
+      "era": 0,
       "portraitResourcePath": "Characters/Hunter/portrait",
       "voiceResourcePath": "Characters/Hunter/voice",
       "leftChoiceText": "card.hunter_report.left",
@@ -156,6 +161,102 @@
       "rightChoiceStatusEffects": [],
       "rightChoiceUnlockFlag": "",
       "NextCardID_Right": ""
+    },
+    {
+      "id": "peasant_uprising",
+      "scenarioText": "card.uprising.scenario",
+      "prerequisiteFlag": "",
+      "era": 2,
+      "portraitResourcePath": "Characters/Survivor/portrait",
+      "voiceResourcePath": "Characters/Survivor/voice",
+      "leftChoiceText": "card.uprising.left",
+      "leftChoiceModifiers": {
+        "religion": -5,
+        "people": 15,
+        "army": -20,
+        "wealth": -10
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "card.uprising.right",
+      "rightChoiceModifiers": {
+        "religion": 0,
+        "people": -20,
+        "army": 10,
+        "wealth": -5
+      },
+      "rightChoiceStatusEffects": [
+        {
+          "targetStat": "People",
+          "valuePerTurn": -4,
+          "duration": 3
+        }
+      ],
+      "rightChoiceUnlockFlag": ""
+    },
+    {
+      "id": "famine_of_ashes",
+      "scenarioText": "card.famine.scenario",
+      "prerequisiteFlag": "",
+      "era": 3,
+      "portraitResourcePath": "Characters/Priest/portrait",
+      "voiceResourcePath": "Characters/Priest/voice",
+      "leftChoiceText": "card.famine.left",
+      "leftChoiceModifiers": {
+        "religion": 10,
+        "people": -15,
+        "army": -10,
+        "wealth": -20
+      },
+      "leftChoiceStatusEffects": [
+        {
+          "targetStat": "People",
+          "valuePerTurn": -5,
+          "duration": 3
+        }
+      ],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "card.famine.right",
+      "rightChoiceModifiers": {
+        "religion": -15,
+        "people": 5,
+        "army": 0,
+        "wealth": -25
+      },
+      "rightChoiceStatusEffects": [],
+      "rightChoiceUnlockFlag": ""
+    },
+    {
+      "id": "foreign_empire",
+      "scenarioText": "card.empire.scenario",
+      "prerequisiteFlag": "",
+      "era": 3,
+      "portraitResourcePath": "Characters/Diplomat/portrait",
+      "voiceResourcePath": "Characters/Diplomat/voice",
+      "leftChoiceText": "card.empire.left",
+      "leftChoiceModifiers": {
+        "religion": -10,
+        "people": -10,
+        "army": 20,
+        "wealth": -25
+      },
+      "leftChoiceStatusEffects": [],
+      "leftChoiceUnlockFlag": "",
+      "rightChoiceText": "card.empire.right",
+      "rightChoiceModifiers": {
+        "religion": 5,
+        "people": 10,
+        "army": -15,
+        "wealth": -15
+      },
+      "rightChoiceStatusEffects": [
+        {
+          "targetStat": "Army",
+          "valuePerTurn": -4,
+          "duration": 4
+        }
+      ],
+      "rightChoiceUnlockFlag": ""
     }
   ],
   "unlockablePools": [
@@ -166,6 +267,7 @@
           "id": "dragon_tribute",
           "scenarioText": "card.dragon_tribute.scenario",
           "prerequisiteFlag": "Discovered_Dragon",
+          "era": 2,
           "portraitResourcePath": "Characters/DragonMessenger/portrait",
           "voiceResourcePath": "Characters/DragonMessenger/voice",
           "leftChoiceText": "card.dragon_tribute.left",
@@ -202,6 +304,7 @@
           "id": "dragon_hoard",
           "scenarioText": "card.dragon_hoard.scenario",
           "prerequisiteFlag": "Slayed_Dragon",
+          "era": 3,
           "portraitResourcePath": "Characters/Survivor/portrait",
           "voiceResourcePath": "Characters/Survivor/voice",
           "leftChoiceText": "card.dragon_hoard.left",

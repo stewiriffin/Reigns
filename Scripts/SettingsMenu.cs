@@ -1,63 +1,116 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Simple settings panel with an analytics privacy opt-out toggle.
-/// Assign scene references, or leave empty to auto-build a minimal overlay UI.
+/// Sliding settings panel opened from the Start Menu or Pause Screen.
+/// Binds controls to <see cref="SettingsManager"/> so tweaks apply immediately and persist.
 /// </summary>
 public class SettingsMenu : MonoBehaviour
 {
     [Header("Optional scene wiring")]
-    [SerializeField] private GameObject settingsPanel;
+    [SerializeField] private RectTransform settingsPanelRoot;
+    [SerializeField] private CanvasGroup settingsCanvasGroup;
     [SerializeField] private Button openButton;
     [SerializeField] private Button closeButton;
+    [SerializeField] private Button dimmerCloseButton;
+    [SerializeField] private Slider masterVolumeSlider;
+    [SerializeField] private Slider bgmVolumeSlider;
+    [SerializeField] private Slider sfxVolumeSlider;
+    [SerializeField] private Toggle vibrationToggle;
+    [SerializeField] private Toggle highFrameRateToggle;
+    [SerializeField] private Button textSizeButton;
+    [SerializeField] private TextMeshProUGUI textSizeLabel;
+    [SerializeField] private Toggle highContrastToggle;
+    [SerializeField] private Toggle colorblindToggle;
     [SerializeField] private Toggle analyticsOptOutToggle;
     [SerializeField] private TextMeshProUGUI optOutLabel;
     [SerializeField] private Canvas targetCanvas;
 
     [Header("Auto UI")]
     [SerializeField] private bool buildUiIfMissing = true;
+    [SerializeField] private float slideDuration = 0.28f;
 
     private bool uiBuilt;
+    private bool isOpen;
+    private Coroutine slideRoutine;
+    private SettingsManager settings;
+
+    public bool IsOpen => isOpen;
 
     private void Awake()
     {
+        EnsureSettingsManager();
+
         if (buildUiIfMissing)
             EnsureUi();
 
-        WireButtons();
-        RefreshToggleFromPrefs();
+        WireControls();
+        RefreshFromSettings();
 
-        if (settingsPanel != null)
-            settingsPanel.SetActive(false);
+        HideImmediate();
+    }
+
+    private void OnDestroy()
+    {
+        if (settings != null)
+            settings.OnSettingsChanged -= RefreshFromSettings;
     }
 
     public void Show()
     {
         EnsureUi();
-        RefreshToggleFromPrefs();
-        if (settingsPanel != null)
-            settingsPanel.SetActive(true);
+        EnsureSettingsManager();
+        RefreshFromSettings();
+
+        if (slideRoutine != null)
+            StopCoroutine(slideRoutine);
+
+        isOpen = true;
+        slideRoutine = StartCoroutine(SlidePanel(open: true));
+
+        if (AccessibilityManager.Instance != null)
+            AccessibilityManager.Instance.Refresh();
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
     }
 
     public void Hide()
     {
-        if (settingsPanel != null)
-            settingsPanel.SetActive(false);
-    }
+        if (!isOpen && (settingsPanelRoot == null || !settingsPanelRoot.gameObject.activeSelf))
+            return;
 
-    public bool IsOpen => settingsPanel != null && settingsPanel.activeSelf;
+        if (slideRoutine != null)
+            StopCoroutine(slideRoutine);
+
+        isOpen = false;
+        slideRoutine = StartCoroutine(SlidePanel(open: false));
+    }
 
     public void Toggle()
     {
-        if (settingsPanel != null && settingsPanel.activeSelf)
+        if (isOpen)
             Hide();
         else
             Show();
     }
 
-    private void WireButtons()
+    private void EnsureSettingsManager()
+    {
+        settings = SettingsManager.Instance != null
+            ? SettingsManager.Instance
+            : FindObjectOfType<SettingsManager>();
+
+        if (settings == null)
+            settings = new GameObject("SettingsManager").AddComponent<SettingsManager>();
+
+        settings.OnSettingsChanged -= RefreshFromSettings;
+        settings.OnSettingsChanged += RefreshFromSettings;
+    }
+
+    private void WireControls()
     {
         if (openButton != null)
         {
@@ -71,20 +124,131 @@ public class SettingsMenu : MonoBehaviour
             closeButton.onClick.AddListener(Hide);
         }
 
-        if (analyticsOptOutToggle != null)
+        if (dimmerCloseButton != null)
         {
-            analyticsOptOutToggle.onValueChanged.RemoveListener(OnOptOutToggled);
-            analyticsOptOutToggle.onValueChanged.AddListener(OnOptOutToggled);
+            dimmerCloseButton.onClick.RemoveListener(Hide);
+            dimmerCloseButton.onClick.AddListener(Hide);
+        }
+
+        BindSlider(masterVolumeSlider, OnMasterChanged);
+        BindSlider(bgmVolumeSlider, OnBgmChanged);
+        BindSlider(sfxVolumeSlider, OnSfxChanged);
+        BindToggle(vibrationToggle, OnVibrationChanged);
+        BindToggle(highFrameRateToggle, OnHighFpsChanged);
+        BindToggle(highContrastToggle, OnHighContrastChanged);
+        BindToggle(colorblindToggle, OnColorblindChanged);
+        BindToggle(analyticsOptOutToggle, OnOptOutToggled);
+
+        if (textSizeButton != null)
+        {
+            textSizeButton.onClick.RemoveListener(OnTextSizeClicked);
+            textSizeButton.onClick.AddListener(OnTextSizeClicked);
         }
     }
 
-    private void RefreshToggleFromPrefs()
+    private static void BindSlider(Slider slider, UnityEngine.Events.UnityAction<float> handler)
     {
-        if (analyticsOptOutToggle == null)
+        if (slider == null)
+            return;
+        slider.onValueChanged.RemoveListener(handler);
+        slider.onValueChanged.AddListener(handler);
+    }
+
+    private static void BindToggle(Toggle toggle, UnityEngine.Events.UnityAction<bool> handler)
+    {
+        if (toggle == null)
+            return;
+        toggle.onValueChanged.RemoveListener(handler);
+        toggle.onValueChanged.AddListener(handler);
+    }
+
+    private void RefreshFromSettings()
+    {
+        if (settings == null)
             return;
 
-        analyticsOptOutToggle.SetIsOnWithoutNotify(AnalyticsManager.IsOptedOut);
-        UpdateOptOutLabel(AnalyticsManager.IsOptedOut);
+        SetSlider(masterVolumeSlider, settings.MasterVolume);
+        SetSlider(bgmVolumeSlider, settings.BgmVolume);
+        SetSlider(sfxVolumeSlider, settings.SfxVolume);
+        SetToggle(vibrationToggle, settings.VibrationEnabled);
+        SetToggle(highFrameRateToggle, settings.HighFrameRate);
+        SetToggle(highContrastToggle, settings.HighContrastMode);
+        SetToggle(colorblindToggle, settings.ColorblindMode);
+        UpdateTextSizeLabel(settings.TextSize);
+
+        if (analyticsOptOutToggle != null)
+        {
+            analyticsOptOutToggle.SetIsOnWithoutNotify(AnalyticsManager.IsOptedOut);
+            UpdateOptOutLabel(AnalyticsManager.IsOptedOut);
+        }
+    }
+
+    private void UpdateTextSizeLabel(TextSizeOption size)
+    {
+        if (textSizeLabel != null)
+            textSizeLabel.text = "Text Size: " + AccessibilityManager.GetTextSizeLabel(size);
+    }
+
+    private static void SetSlider(Slider slider, float value)
+    {
+        if (slider != null)
+            slider.SetValueWithoutNotify(Mathf.Clamp01(value));
+    }
+
+    private static void SetToggle(Toggle toggle, bool value)
+    {
+        if (toggle != null)
+            toggle.SetIsOnWithoutNotify(value);
+    }
+
+    private void OnMasterChanged(float value)
+    {
+        settings?.SetMasterVolume(value);
+    }
+
+    private void OnBgmChanged(float value)
+    {
+        settings?.SetBgmVolume(value);
+    }
+
+    private void OnSfxChanged(float value)
+    {
+        settings?.SetSfxVolume(value);
+    }
+
+    private void OnVibrationChanged(bool enabled)
+    {
+        settings?.SetVibrationEnabled(enabled);
+        if (enabled)
+            HapticFeedback.PlayLight();
+    }
+
+    private void OnHighFpsChanged(bool highFps)
+    {
+        settings?.SetHighFrameRate(highFps);
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
+    }
+
+    private void OnTextSizeClicked()
+    {
+        settings?.CycleTextSize();
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
+    }
+
+    private void OnHighContrastChanged(bool enabled)
+    {
+        settings?.SetHighContrastMode(enabled);
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
+    }
+
+    private void OnColorblindChanged(bool enabled)
+    {
+        settings?.SetColorblindMode(enabled);
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlayButtonClick();
     }
 
     private void OnOptOutToggled(bool optedOut)
@@ -106,12 +270,70 @@ public class SettingsMenu : MonoBehaviour
             : "Opt out of analytics";
     }
 
+    private IEnumerator SlidePanel(bool open)
+    {
+        if (settingsPanelRoot == null || settingsCanvasGroup == null)
+            yield break;
+
+        settingsPanelRoot.gameObject.SetActive(true);
+        settingsCanvasGroup.blocksRaycasts = open;
+        settingsCanvasGroup.interactable = open;
+
+        float width = ((RectTransform)settingsPanelRoot.parent).rect.width;
+        if (width < 1f)
+            width = Screen.width;
+
+        Vector2 hidden = new Vector2(width, 0f);
+        Vector2 shown = Vector2.zero;
+        Vector2 from = open ? hidden : settingsPanelRoot.anchoredPosition;
+        Vector2 to = open ? shown : hidden;
+        float fromAlpha = open ? 0f : settingsCanvasGroup.alpha;
+        float toAlpha = open ? 1f : 0f;
+
+        float duration = Mathf.Max(0.05f, slideDuration);
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            t = t * t * (3f - 2f * t);
+            settingsPanelRoot.anchoredPosition = Vector2.Lerp(from, to, t);
+            settingsCanvasGroup.alpha = Mathf.Lerp(fromAlpha, toAlpha, t);
+            yield return null;
+        }
+
+        settingsPanelRoot.anchoredPosition = to;
+        settingsCanvasGroup.alpha = toAlpha;
+
+        if (!open)
+            settingsPanelRoot.gameObject.SetActive(false);
+
+        slideRoutine = null;
+    }
+
+    private void HideImmediate()
+    {
+        isOpen = false;
+        if (settingsPanelRoot != null)
+        {
+            settingsPanelRoot.gameObject.SetActive(false);
+            settingsPanelRoot.anchoredPosition = new Vector2(2000f, 0f);
+        }
+
+        if (settingsCanvasGroup != null)
+        {
+            settingsCanvasGroup.alpha = 0f;
+            settingsCanvasGroup.blocksRaycasts = false;
+            settingsCanvasGroup.interactable = false;
+        }
+    }
+
     private void EnsureUi()
     {
         if (uiBuilt)
             return;
 
-        if (settingsPanel != null && analyticsOptOutToggle != null)
+        if (settingsPanelRoot != null && masterVolumeSlider != null)
         {
             uiBuilt = true;
             return;
@@ -128,7 +350,7 @@ public class SettingsMenu : MonoBehaviour
             var canvasGo = new GameObject("SettingsCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             targetCanvas = canvasGo.GetComponent<Canvas>();
             targetCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            targetCanvas.sortingOrder = 90;
+            targetCanvas.sortingOrder = 110;
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080f, 1920f);
@@ -152,87 +374,217 @@ public class SettingsMenu : MonoBehaviour
             CreateLabel(openGo.transform, "Settings", 24f, FontStyles.Bold);
         }
 
-        if (settingsPanel == null)
-        {
-            var dimGo = CreatePanel(
-                "SettingsPanel",
-                canvasRt,
-                Vector2.zero,
-                Vector2.one,
-                new Vector2(0.5f, 0.5f),
-                Vector2.zero,
-                Vector2.zero,
-                new Color(0f, 0f, 0f, 0.72f));
-            Stretch(dimGo.GetComponent<RectTransform>());
-            settingsPanel = dimGo;
+        var root = new GameObject("SettingsPanel", typeof(RectTransform), typeof(CanvasGroup), typeof(Image), typeof(Button));
+        root.transform.SetParent(canvasRt, false);
+        settingsPanelRoot = root.GetComponent<RectTransform>();
+        settingsCanvasGroup = root.GetComponent<CanvasGroup>();
+        Stretch(settingsPanelRoot);
+        root.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.72f);
+        if (root.GetComponent<AccessibleBackground>() == null)
+            root.AddComponent<AccessibleBackground>();
+        dimmerCloseButton = root.GetComponent<Button>();
+        dimmerCloseButton.transition = Selectable.Transition.None;
 
-            var window = CreatePanel(
-                "Window",
-                dimGo.transform,
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f),
-                Vector2.zero,
-                new Vector2(820f, 520f),
-                new Color(0.1f, 0.09f, 0.08f, 0.98f));
+        var window = CreatePanel(
+            "Window",
+            root.transform,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero,
+            new Vector2(860f, 1280f),
+            new Color(0.1f, 0.09f, 0.08f, 0.98f));
+        // Block clicks on the window from closing via dimmer.
+        window.AddComponent<Button>().transition = Selectable.Transition.None;
 
-            CreateLabel(window.transform, "Settings", 40f, FontStyles.Bold, new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(0f, -28f), new Vector2(0f, 56f));
+        CreateLabel(window.transform, "Settings", 40f, FontStyles.Bold,
+            new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -28f), new Vector2(0f, 56f));
 
-            var closeGo = CreatePanel(
-                "Close",
-                window.transform,
-                new Vector2(1f, 1f),
-                new Vector2(1f, 1f),
-                new Vector2(1f, 1f),
-                new Vector2(-16f, -16f),
-                new Vector2(72f, 72f),
-                new Color(0.25f, 0.18f, 0.15f, 1f));
-            closeButton = closeGo.AddComponent<Button>();
-            CreateLabel(closeGo.transform, "X", 34f, FontStyles.Bold);
+        var closeGo = CreatePanel(
+            "Close",
+            window.transform,
+            new Vector2(1f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(-16f, -16f),
+            new Vector2(72f, 72f),
+            new Color(0.25f, 0.18f, 0.15f, 1f));
+        closeButton = closeGo.AddComponent<Button>();
+        CreateLabel(closeGo.transform, "X", 34f, FontStyles.Bold);
 
-            // Opt-out row
-            var row = CreatePanel(
-                "AnalyticsOptOutRow",
-                window.transform,
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 40f),
-                new Vector2(720f, 100f),
-                new Color(0.14f, 0.13f, 0.12f, 1f));
+        float y = 420f;
+        masterVolumeSlider = CreateVolumeRow(window.transform, "Master Volume", ref y);
+        bgmVolumeSlider = CreateVolumeRow(window.transform, "Music (BGM)", ref y);
+        sfxVolumeSlider = CreateVolumeRow(window.transform, "Sound Effects", ref y);
 
-            analyticsOptOutToggle = CreateToggle(row.transform);
-            optOutLabel = CreateLabel(
-                row.transform,
-                "Opt out of analytics",
-                28f,
-                FontStyles.Normal,
-                new Vector2(0f, 0.5f),
-                new Vector2(1f, 0.5f),
-                new Vector2(40f, 0f),
-                new Vector2(-120f, 40f),
-                TextAlignmentOptions.Left);
+        vibrationToggle = CreateToggleRow(window.transform, "Vibration", ref y, out _);
+        highFrameRateToggle = CreateToggleRow(window.transform, "Smooth Mode (60 FPS)", ref y, out _);
 
-            CreateLabel(
-                window.transform,
-                "We only collect anonymous death and story-choice data to balance difficulty. You can stop this anytime.",
-                22f,
-                FontStyles.Normal,
-                new Vector2(0f, 0f),
-                new Vector2(1f, 0.45f),
-                Vector2.zero,
-                new Vector2(-64f, 0f),
-                TextAlignmentOptions.Center).color = new Color(0.75f, 0.72f, 0.66f, 1f);
-        }
+        textSizeButton = CreateTextSizeRow(window.transform, ref y, out textSizeLabel);
+        highContrastToggle = CreateToggleRow(window.transform, "High Contrast Mode", ref y, out _);
+        colorblindToggle = CreateToggleRow(window.transform, "Colorblind Mode", ref y, out _);
 
-        WireButtons();
+        analyticsOptOutToggle = CreateToggleRow(window.transform, "Opt out of analytics", ref y, out optOutLabel);
+
+        CreateLabel(
+            window.transform,
+            "Accessibility options apply immediately and save for next launch.",
+            20f,
+            FontStyles.Normal,
+            new Vector2(0f, 0f),
+            new Vector2(1f, 0f),
+            new Vector2(0f, 28f),
+            new Vector2(-48f, 48f),
+            TextAlignmentOptions.Center).color = new Color(0.75f, 0.72f, 0.66f, 1f);
+
+        WireControls();
         uiBuilt = true;
+
+        if (AccessibilityManager.Instance != null)
+            AccessibilityManager.Instance.Refresh();
+    }
+
+    private static Button CreateTextSizeRow(Transform parent, ref float y, out TextMeshProUGUI label)
+    {
+        var row = CreatePanel(
+            "TextSizeRow",
+            parent,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0f, y),
+            new Vector2(760f, 100f),
+            new Color(0.14f, 0.13f, 0.12f, 1f));
+
+        label = CreateLabel(
+            row.transform,
+            "Text Size: Medium",
+            26f,
+            FontStyles.Bold,
+            new Vector2(0f, 0.5f),
+            new Vector2(1f, 0.5f),
+            new Vector2(28f, 0f),
+            new Vector2(-200f, 40f),
+            TextAlignmentOptions.Left);
+
+        var buttonGo = CreatePanel(
+            "Cycle",
+            row.transform,
+            new Vector2(1f, 0.5f),
+            new Vector2(1f, 0.5f),
+            new Vector2(1f, 0.5f),
+            new Vector2(-20f, 0f),
+            new Vector2(160f, 64f),
+            new Color(0.25f, 0.2f, 0.16f, 1f));
+        var button = buttonGo.AddComponent<Button>();
+        CreateLabel(buttonGo.transform, "Change", 24f, FontStyles.Bold);
+
+        y -= 116f;
+        return button;
+    }
+
+    private static Slider CreateVolumeRow(Transform parent, string label, ref float y)
+    {
+        var row = CreatePanel(
+            label + "Row",
+            parent,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0f, y),
+            new Vector2(760f, 110f),
+            new Color(0.14f, 0.13f, 0.12f, 1f));
+
+        CreateLabel(row.transform, label, 26f, FontStyles.Bold,
+            new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(12f, -8f), new Vector2(-24f, 36f),
+            TextAlignmentOptions.Left);
+
+        Slider slider = CreateSlider(row.transform);
+        y -= 128f;
+        return slider;
+    }
+
+    private static Toggle CreateToggleRow(Transform parent, string label, ref float y, out TextMeshProUGUI labelTmp)
+    {
+        var row = CreatePanel(
+            label + "Row",
+            parent,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0f, y),
+            new Vector2(760f, 100f),
+            new Color(0.14f, 0.13f, 0.12f, 1f));
+
+        labelTmp = CreateLabel(
+            row.transform,
+            label,
+            26f,
+            FontStyles.Normal,
+            new Vector2(0f, 0.5f),
+            new Vector2(1f, 0.5f),
+            new Vector2(28f, 0f),
+            new Vector2(-140f, 40f),
+            TextAlignmentOptions.Left);
+
+        Toggle toggle = CreateToggle(row.transform);
+        y -= 116f;
+        return toggle;
+    }
+
+    private static Slider CreateSlider(Transform parent)
+    {
+        var sliderGo = new GameObject("Slider", typeof(RectTransform), typeof(Slider));
+        sliderGo.transform.SetParent(parent, false);
+        var rt = sliderGo.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 0f);
+        rt.anchorMax = new Vector2(1f, 0f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.anchoredPosition = new Vector2(0f, 18f);
+        rt.sizeDelta = new Vector2(-48f, 36f);
+
+        var bg = new GameObject("Background", typeof(RectTransform), typeof(Image));
+        bg.transform.SetParent(sliderGo.transform, false);
+        Stretch(bg.GetComponent<RectTransform>());
+        bg.GetComponent<Image>().color = new Color(0.25f, 0.24f, 0.22f, 1f);
+
+        var fillArea = new GameObject("Fill Area", typeof(RectTransform));
+        fillArea.transform.SetParent(sliderGo.transform, false);
+        var fillAreaRt = fillArea.GetComponent<RectTransform>();
+        Stretch(fillAreaRt);
+        fillAreaRt.offsetMin = new Vector2(8f, 8f);
+        fillAreaRt.offsetMax = new Vector2(-8f, -8f);
+
+        var fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+        fill.transform.SetParent(fillArea.transform, false);
+        Stretch(fill.GetComponent<RectTransform>());
+        fill.GetComponent<Image>().color = new Color(0.72f, 0.58f, 0.32f, 1f);
+
+        var handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+        handleArea.transform.SetParent(sliderGo.transform, false);
+        Stretch(handleArea.GetComponent<RectTransform>());
+
+        var handle = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+        handle.transform.SetParent(handleArea.transform, false);
+        var handleRt = handle.GetComponent<RectTransform>();
+        handleRt.sizeDelta = new Vector2(28f, 48f);
+        handle.GetComponent<Image>().color = new Color(0.95f, 0.92f, 0.86f, 1f);
+
+        var slider = sliderGo.GetComponent<Slider>();
+        slider.targetGraphic = handle.GetComponent<Image>();
+        slider.fillRect = fill.GetComponent<RectTransform>();
+        slider.handleRect = handleRt;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.wholeNumbers = false;
+        slider.value = 1f;
+        return slider;
     }
 
     private static Toggle CreateToggle(Transform parent)
     {
-        var toggleGo = new GameObject("OptOutToggle", typeof(RectTransform), typeof(Toggle));
+        var toggleGo = new GameObject("Toggle", typeof(RectTransform), typeof(Toggle));
         toggleGo.transform.SetParent(parent, false);
         var rt = toggleGo.GetComponent<RectTransform>();
         rt.anchorMin = new Vector2(1f, 0.5f);
@@ -281,6 +633,8 @@ public class SettingsMenu : MonoBehaviour
         rt.anchoredPosition = anchoredPos;
         rt.sizeDelta = size;
         go.GetComponent<Image>().color = color;
+        if (go.GetComponent<AccessibleBackground>() == null)
+            go.AddComponent<AccessibleBackground>();
         return go;
     }
 

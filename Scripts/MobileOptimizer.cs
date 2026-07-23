@@ -3,6 +3,7 @@ using UnityEngine;
 /// <summary>
 /// Battery-friendly defaults for a UI-heavy 2D Android card game.
 /// Caps FPS, disables vSync override fights, and turns off unused motion sensors.
+/// Frame rate is owned by <see cref="SettingsManager"/> when present.
 /// </summary>
 public class MobileOptimizer : MonoBehaviour
 {
@@ -18,10 +19,24 @@ public class MobileOptimizer : MonoBehaviour
     }
 
     /// <summary>
+    /// Called by SettingsManager when the player toggles 30 / 60 FPS.
+    /// </summary>
+    public void NotifyExternalFrameRate(int fps)
+    {
+        targetFrameRate = Mathf.Max(15, fps);
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = targetFrameRate;
+    }
+
+    /// <summary>
     /// Applies low-power rendering and input settings suitable for tap-only UI games.
     /// </summary>
     public void ApplyOptimizations()
     {
+        // Prefer the user's saved frame-rate choice when SettingsManager already booted.
+        if (SettingsManager.Instance != null)
+            targetFrameRate = SettingsManager.Instance.TargetFrameRate;
+
         // vSync must be off or Android may ignore targetFrameRate.
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = Mathf.Max(15, targetFrameRate);
